@@ -15,7 +15,7 @@ import {
 } from "react-native"
 import { Feather } from "@expo/vector-icons"
 import { useTheme } from "../../Context/ThemeContext"
-import type { Reservation } from "../../app/(tabs)/ReservationsScreen"
+import type { Reservation } from "../../app/(tabs)"
 
 interface DataTypes {
   reserveDate: string

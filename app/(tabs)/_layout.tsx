@@ -3,20 +3,18 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Link, Tabs } from 'expo-router';
 import { Pressable } from 'react-native';
 
+import { Feather } from "@expo/vector-icons"
+
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 
-// You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
-function TabBarIcon(props: {
-  name: React.ComponentProps<typeof FontAwesome>['name'];
-  color: string;
-}) {
-  return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
-}
+
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+
+  
 
   return (
     <Tabs
@@ -29,7 +27,29 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Tab One',
+          title: 'Reservations',
+          tabBarIcon: ({ color }) => <Feather name="list" size={20} color={color}/>
+          ,
+          headerRight: () => (
+            <Link href="/Profile" asChild>
+              <Pressable>
+                {({ pressed }) => (
+                  <FontAwesome
+                    name="info-circle"
+                    size={25}
+                    color={Colors[colorScheme ?? 'light'].text}
+                    style={{ marginRight: 15, opacity: pressed ? 0.5 : 1 }}
+                  />
+                )}
+              </Pressable>
+            </Link>
+          ),
+        }}
+      />
+      {/* <Tabs.Screen
+        name="Reservations"
+        options={{
+          title: 'Reservations',
           tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
           headerRight: () => (
             <Link href="/modal" asChild>
@@ -46,14 +66,15 @@ export default function TabLayout() {
             </Link>
           ),
         }}
-      />
-      <Tabs.Screen
-        name="two"
+      /> */}
+      {/* <Tabs.Screen
+        name="Reservations Screen"
         options={{
-          title: 'Tab Two',
+          title: 'Reservations Screen',
           tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
         }}
-      />
+      /> */}
+      
     </Tabs>
   );
 }

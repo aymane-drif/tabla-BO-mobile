@@ -4,7 +4,7 @@ import type React from "react"
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native"
 import { Feather } from "@expo/vector-icons"
 import { useTheme } from "../../Context/ThemeContext"
-import type { Reservation } from "../../app/(tabs)/ReservationsScreen"
+import type { Reservation } from "../../app/(tabs)"
 
 interface ReservationCardProps {
   reservation: Reservation
@@ -29,17 +29,17 @@ const ReservationCard: React.FC<ReservationCardProps> = ({
   const getStatusStyle = (status: string) => {
     switch (status) {
       case "PENDING":
-        return { backgroundColor: "#E6F0FF", color: "#0066FF" }
+        return { backgroundColor: "#3F72AF1A", color: "#3F72AF" }
       case "APPROVED":
-        return { backgroundColor: "#E6F9F1", color: "#00B368" }
+        return { backgroundColor: "#88AB611A", color: "#88AB61" }
       case "SEATED":
-        return { backgroundColor: "#FFF4E6", color: "#FF9500" }
+        return { backgroundColor: "#F093001A", color: "#F09300" }
       case "FULFILLED":
-        return { backgroundColor: "#F2E6FF", color: "#9966FF" }
+        return { backgroundColor: "#7b2cbf1A", color: "#7b2cbf" }
       case "NO_SHOW":
-        return { backgroundColor: "#FFE6F0", color: "#FF3377" }
+        return { backgroundColor: "#9c66441A", color: "#9c6644" }
       default: // CANCELED
-        return { backgroundColor: "#FFE6E6", color: "#FF3333" }
+        return { backgroundColor: "#FF4B4B1A", color: "#FF4B4B" }
     }
   }
 
@@ -148,8 +148,8 @@ const ReservationCard: React.FC<ReservationCardProps> = ({
             <Feather name="tag" size={14} color={colors.text + "80"} style={styles.icon} />
             <View style={styles.tagsList}>
               {reservation.tags.map((tag, index) => (
-                <View key={index} style={[styles.tagChip, { backgroundColor: "#E6F9F1" }]}>
-                  <Text style={{ color: "#00B368" }}>{tag}</Text>
+                <View key={index} style={[styles.tagChip, { backgroundColor: "#88AB611A" }]}>
+                  <Text style={{ color: "#88AB61" }}>{tag}</Text>
                 </View>
               ))}
             </View>
@@ -169,13 +169,13 @@ const ReservationCard: React.FC<ReservationCardProps> = ({
         </TouchableOpacity>
 
         {reservation.status === "SEATED" && (
-          <TouchableOpacity style={[styles.actionButton, { backgroundColor: "#E6F9F1" }]} onPress={onReview}>
-            <Feather name="send" size={18} color="#00B368" />
+          <TouchableOpacity style={[styles.actionButton, { backgroundColor: "#88AB611A" }]} onPress={onReview}>
+            <Feather name="send" size={18} color="#88AB61" />
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity style={[styles.actionButton, { backgroundColor: "#FFE6E6" }]} onPress={onDelete}>
-          <Feather name="trash-2" size={18} color="#FF3333" />
+        <TouchableOpacity style={[styles.actionButton, { backgroundColor: "#FF4B4B1A" }]} onPress={onDelete}>
+          <Feather name="trash-2" size={18} color="#FF4B4B" />
         </TouchableOpacity>
       </View>
     </View>

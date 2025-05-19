@@ -833,7 +833,7 @@ const ReservationsScreen = () => {
       />
 
       {/* Edit Reservation Modal */}
-      {showModal && selectedClient && (
+      {selectedClient && (
         <EditReservationModal
           isVisible={showModal}
           reservation={selectedClient}

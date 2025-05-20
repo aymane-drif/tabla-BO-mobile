@@ -5,6 +5,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native"
 import { Feather } from "@expo/vector-icons"
 import { Link } from "expo-router"
 import { useTheme } from "../Context/ThemeContext"
+import { useNavigation } from '@react-navigation/native';
 
 
 interface CustomHeaderProps {
@@ -23,7 +24,6 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
   userName = "TT",
 }) => {
   const { colors } = useTheme()
-
   return (
     <View style={[styles.container, { backgroundColor: colors.card }]}>
       {/* Logo */}
@@ -44,9 +44,24 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
       {/* Right Side Icons */}
       <View style={styles.rightContainer}>
         {/* Notification Bell */}
-        <TouchableOpacity style={styles.iconButton} onPress={onNotificationPress}>
-          <Feather name="bell" size={20} color={colors.text} />
-        </TouchableOpacity>
+        <Link href="/Notifications" asChild>
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={onNotificationPress}
+          >
+            <Feather name="bell" size={20} color={colors.text} />
+            {/* {unreadCount > 0 && (
+          // <View style={styles.badgeContainer}>
+          //   <Text style={styles.badgeText}>
+          //     {unreadCount > 9 ? '9+' : unreadCount}
+          //   </Text>
+          // </View>
+          )} */}
+            <View style={styles.badgeContainer}>
+              <Text style={styles.badgeText}>9+</Text>
+            </View>
+          </TouchableOpacity>
+        </Link>
 
         {/* Language Selector
         <TouchableOpacity style={styles.languageButton} onPress={onLanguagePress}>
@@ -60,16 +75,42 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
 
         {/* Profile Avatar */}
         <Link href="/Profile" asChild>
-          <TouchableOpacity style={[styles.avatarButton, { backgroundColor: "#8BAD62"}]} onPress={onProfilePress}>
+          <TouchableOpacity
+            style={styles.avatarButton}
+            onPress={onProfilePress}
+          >
             <Feather name="user" size={20} color="black" />
           </TouchableOpacity>
         </Link>
       </View>
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
+  iconButton: {
+    marginLeft: 16,
+    marginRight: 16,
+    padding: 8,
+    position: 'relative', // For badge positioning
+  },
+  badgeContainer: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: "#FF4B4B",
+    borderRadius: 10,
+    minWidth: 15,
+    height: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    color: "white",
+    fontSize: 9,
+    fontWeight: 'bold',
+  },
   container: {
     flexDirection: "row",
     alignItems: "center",
@@ -97,11 +138,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  iconButton: {
-    marginLeft: 16,
-    marginRight: 16,
-    padding: 8,
-  },
   languageButton: {
     marginLeft: 16,
   },
@@ -117,6 +153,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 16,
+    backgroundColor: "#8BAD62"
   },
   avatarText: {
     color: "white",

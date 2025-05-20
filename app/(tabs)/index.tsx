@@ -50,7 +50,7 @@ export interface Reservation {
   commenter?: string
   review?: boolean
   allergies?: string
-  occasion?: { id: number; name: string }
+  occasion?: number | { id: number; name: string } | null
   guests?: number
   floor_name?: string
   table_name?: string
@@ -223,6 +223,10 @@ const ReservationsScreen = () => {
     saveColumnsToStorage(columns)
   }, [columns])
 
+  
+
+  // You can call fetchReservations() in a useEffect if you want to load from API instead of mock data
+
   // Mock data loading
   useEffect(() => {
     // Simulate API call
@@ -288,6 +292,44 @@ const ReservationsScreen = () => {
           status: "CANCELED",
           cancellation_note: "Family emergency",
           seq_id: "1005",
+        },
+        {
+          id: "6",
+          full_name: "David Lee",
+          email: "david.l@example.com",
+          phone: "+1 555-234-5678",
+          date: "2025-05-22",
+          time: "20:00:00",
+          number_of_guests: "5",
+          status: "NO_SHOW",
+          cancellation_note: "Family emergency",
+          seq_id: "1005",
+        },
+        {
+          id: "7",
+          full_name: "Sophia Martinez",
+          email: "acsn@afns.com",
+          phone: "+1 555-321-0987",
+          date: "2025-05-22",
+          time: "21:00:00",
+          number_of_guests: "8",
+          status: "APPROVED",
+          tables: [{ id: 3, name: "Table 15" }],
+          seq_id: "1006",
+          tags: ["VIP"],
+        },
+        {
+          id: "8",
+          full_name: "James Taylor",
+          email: "acsn@afns.com",
+          phone: "+1 555-654-3210",
+          date: "2025-05-23",
+          time: "18:30:00",
+          number_of_guests: "2",
+          status: "PENDING",
+          tables: [{ id: 4, name: "Table 20" }],
+          seq_id: "1007",
+          tags: ["Regular"],
         },
       ]
 
@@ -379,7 +421,12 @@ const ReservationsScreen = () => {
   }
 
   const upDateHandler = (updatedReservation: Reservation): void => {
-    // In a real app, you would call an API here
+    // Normalize occasion to match expected type: { id: number; name: string } | undefined
+    let normalizedOccasion: { id: number; name: string } | undefined = undefined
+    if (updatedReservation.occasion && typeof updatedReservation.occasion === "object" && "id" in updatedReservation.occasion && "name" in updatedReservation.occasion) {
+      normalizedOccasion = updatedReservation.occasion as { id: number; name: string }
+    }
+
     const updatedReservations = reservations.map((r) =>
       r.id === editingClient
         ? {
@@ -391,7 +438,7 @@ const ReservationsScreen = () => {
             source: updatedReservation.source,
             status: updatedReservation.status,
             internal_note: updatedReservation.internal_note,
-            occasion: updatedReservation.occasion,
+            occasion: normalizedOccasion,
             date: reservationProgressData.reserveDate,
             time: `${reservationProgressData.time}:00`,
             tables: updatedReservation.tables,
@@ -504,6 +551,127 @@ const ReservationsScreen = () => {
           <Feather name="filter" size={20} color={colors.text} />
         </TouchableOpacity>
       </View>
+      <Text style={[styles.filterSectionTitle, { color: colors.text }]}>Status</Text>
+      <View style={styles.filterButtonsContainer}>
+        <TouchableOpacity
+          style={[
+            styles.filterStatusButton,
+            focusedFilter === "FULFILLED" && styles.activeFilterButton,
+            { backgroundColor: focusedFilter === "FULFILLED" ? colors.primary : colors.card },
+          ]}
+          onPress={() => filterByStatus("FULFILLED")}
+        >
+          <Text
+            style={{
+              color: focusedFilter === "FULFILLED" ? "#fff" : colors.text,
+            }}
+          >
+            Fulfilled
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.filterStatusButton,
+            focusedFilter === "SEATED" && styles.activeFilterButton,
+            { backgroundColor: focusedFilter === "SEATED" ? colors.primary : colors.card },
+          ]}
+          onPress={() => filterByStatus("SEATED")}
+        >
+          <Text
+            style={{
+              color: focusedFilter === "SEATED" ? "#fff" : colors.text,
+            }}
+          >
+            Seated
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.filterStatusButton,
+            focusedFilter === "APPROVED" && styles.activeFilterButton,
+            { backgroundColor: focusedFilter === "APPROVED" ? colors.primary : colors.card },
+          ]}
+          onPress={() => filterByStatus("APPROVED")}
+        >
+          <Text
+            style={{
+              color: focusedFilter === "APPROVED" ? "#fff" : colors.text,
+            }}
+          >
+            Confirmed
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.filterStatusButton,
+            focusedFilter === "CANCELED" && styles.activeFilterButton,
+            { backgroundColor: focusedFilter === "CANCELED" ? colors.primary : colors.card },
+          ]}
+          onPress={() => filterByStatus("CANCELED")}
+        >
+          <Text
+            style={{
+              color: focusedFilter === "CANCELED" ? "#fff" : colors.text,
+            }}
+          >
+            Cancelled
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.filterStatusButton,
+            focusedFilter === "PENDING" && styles.activeFilterButton,
+            { backgroundColor: focusedFilter === "PENDING" ? colors.primary : colors.card },
+          ]}
+          onPress={() => filterByStatus("PENDING")}
+        >
+          <Text
+            style={{
+              color: focusedFilter === "PENDING" ? "#fff" : colors.text,
+            }}
+          >
+            Pending
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.filterStatusButton,
+            focusedFilter === "NO_SHOW" && styles.activeFilterButton,
+            { backgroundColor: focusedFilter === "NO_SHOW" ? colors.primary : colors.card },
+          ]}
+          onPress={() => filterByStatus("NO_SHOW")}
+        >
+          <Text
+            style={{
+              color: focusedFilter === "NO_SHOW" ? "#fff" : colors.text,
+            }}
+          >
+            No Show
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.filterStatusButton,
+            focusedFilter === "" && !selectingDay && styles.activeFilterButton,
+            { backgroundColor: focusedFilter === "" && !selectingDay ? colors.primary : colors.card },
+          ]}
+          onPress={setDefaultFilter}
+        >
+          <Text
+            style={{
+              color: focusedFilter === "" && !selectingDay ? "#fff" : colors.text,
+            }}
+          >
+            All
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Active Filters Display */}
       {focusedFilter || selectingDay ? (
@@ -602,6 +770,11 @@ const ReservationsScreen = () => {
                     number_of_guests: newReservation.number_of_guests ?? "",
                     status: newReservation.status ?? "PENDING",
                     id: newReservation.id ?? `${Date.now()}`,
+                    // Ensure occasion is either undefined or an object of the correct shape
+                    occasion:
+                      newReservation.occasion && typeof newReservation.occasion === "object"
+                        ? newReservation.occasion
+                        : undefined,
                   }
                   setReservations((prev) => [
                     ...prev,
@@ -637,127 +810,7 @@ const ReservationsScreen = () => {
             </View>
 
             <ScrollView style={styles.modalContent}>
-              <Text style={[styles.filterSectionTitle, { color: colors.text }]}>Status</Text>
-              <View style={styles.filterButtonsContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.filterStatusButton,
-                    focusedFilter === "FULFILLED" && styles.activeFilterButton,
-                    { backgroundColor: focusedFilter === "FULFILLED" ? colors.primary : colors.card },
-                  ]}
-                  onPress={() => filterByStatus("FULFILLED")}
-                >
-                  <Text
-                    style={{
-                      color: focusedFilter === "FULFILLED" ? "#fff" : colors.text,
-                    }}
-                  >
-                    Fulfilled
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.filterStatusButton,
-                    focusedFilter === "SEATED" && styles.activeFilterButton,
-                    { backgroundColor: focusedFilter === "SEATED" ? colors.primary : colors.card },
-                  ]}
-                  onPress={() => filterByStatus("SEATED")}
-                >
-                  <Text
-                    style={{
-                      color: focusedFilter === "SEATED" ? "#fff" : colors.text,
-                    }}
-                  >
-                    Seated
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.filterStatusButton,
-                    focusedFilter === "APPROVED" && styles.activeFilterButton,
-                    { backgroundColor: focusedFilter === "APPROVED" ? colors.primary : colors.card },
-                  ]}
-                  onPress={() => filterByStatus("APPROVED")}
-                >
-                  <Text
-                    style={{
-                      color: focusedFilter === "APPROVED" ? "#fff" : colors.text,
-                    }}
-                  >
-                    Confirmed
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.filterStatusButton,
-                    focusedFilter === "CANCELED" && styles.activeFilterButton,
-                    { backgroundColor: focusedFilter === "CANCELED" ? colors.primary : colors.card },
-                  ]}
-                  onPress={() => filterByStatus("CANCELED")}
-                >
-                  <Text
-                    style={{
-                      color: focusedFilter === "CANCELED" ? "#fff" : colors.text,
-                    }}
-                  >
-                    Cancelled
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.filterStatusButton,
-                    focusedFilter === "PENDING" && styles.activeFilterButton,
-                    { backgroundColor: focusedFilter === "PENDING" ? colors.primary : colors.card },
-                  ]}
-                  onPress={() => filterByStatus("PENDING")}
-                >
-                  <Text
-                    style={{
-                      color: focusedFilter === "PENDING" ? "#fff" : colors.text,
-                    }}
-                  >
-                    Pending
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.filterStatusButton,
-                    focusedFilter === "NO_SHOW" && styles.activeFilterButton,
-                    { backgroundColor: focusedFilter === "NO_SHOW" ? colors.primary : colors.card },
-                  ]}
-                  onPress={() => filterByStatus("NO_SHOW")}
-                >
-                  <Text
-                    style={{
-                      color: focusedFilter === "NO_SHOW" ? "#fff" : colors.text,
-                    }}
-                  >
-                    No Show
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.filterStatusButton,
-                    focusedFilter === "" && !selectingDay && styles.activeFilterButton,
-                    { backgroundColor: focusedFilter === "" && !selectingDay ? colors.primary : colors.card },
-                  ]}
-                  onPress={setDefaultFilter}
-                >
-                  <Text
-                    style={{
-                      color: focusedFilter === "" && !selectingDay ? "#fff" : colors.text,
-                    }}
-                  >
-                    All
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              
 
               <Text style={[styles.filterSectionTitle, { color: colors.text }]}>Date</Text>
               <TouchableOpacity
@@ -876,7 +929,8 @@ const ReservationsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
+    padding: 10,
+    paddingBottom:0,
   },
   header: {
     flexDirection: "row",
@@ -902,7 +956,7 @@ const styles = StyleSheet.create({
   },
   searchFilterContainer: {
     flexDirection: "row",
-    marginBottom: 16,
+    marginBottom: 7,
   },
   searchContainer: {
     flex: 1,
@@ -934,7 +988,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   listContainer: {
-    paddingBottom: 16,
+    paddingBottom: 0,
   },
   loadingContainer: {
     flex: 1,
@@ -991,8 +1045,8 @@ const styles = StyleSheet.create({
   filterSectionTitle: {
     fontSize: 16,
     fontWeight: "600",
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: 2,
+    marginBottom: 3,
   },
   filterButtonsContainer: {
     flexDirection: "row",

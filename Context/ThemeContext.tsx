@@ -3,13 +3,14 @@
 import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
 import { useColorScheme } from "react-native"
+import { blue } from "react-native-reanimated/lib/typescript/Colors"
 
 // Define theme colors based on the Tailwind config but with React Native-friendly structure
 const lightTheme = {
   primary: "#88AB61", // greentheme
   secondary: "#3F72AF", // bluetheme
-  background: "#FFFFFF", // whitetheme
-  card: "#f3f3f3", // softgreytheme
+  background: "#f6f6f6", // whitetheme
+  card: "#fff", // softgreytheme
   text: "#1A1A1A", // blacktheme
   subtext: "#1E1E1E80", // subblack
   border: "#E1E1E1",
@@ -18,6 +19,7 @@ const lightTheme = {
   warning: "#FFA500", // orangetheme
   danger: "#FF4B4B", // redtheme
   info: "#3F72AF", // bluetheme
+  blue: "#3F72AF", // bluetheme
   purple: "#7b2cbf", // purpletheme
   blush: "#b75d69", // blushtheme
   yellow: "#F09300", // yellowtheme
@@ -37,6 +39,7 @@ const darkTheme = {
   warning: "#FFA500", // orangetheme
   danger: "#FF4B4B", // redtheme
   info: "#3F72AF", // bluetheme
+  blue: "#3F72AF", // bluetheme
   purple: "#7b2cbf", // purpletheme
   blush: "#b75d69", // blushtheme
   yellow: "#F09300", // yellowtheme
@@ -51,9 +54,9 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  isDarkMode: false,
+  isDarkMode: true,
   toggleTheme: () => {},
-  colors: lightTheme,
+  colors: darkTheme // Default to dark theme,
 })
 
 // Theme provider component
@@ -67,7 +70,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [colorScheme])
 
   const toggleTheme = () => {
-    setIsDarkMode((prev) => !prev)
+    colorScheme === "dark" ? setIsDarkMode(false) :
+    colorScheme === "light" ? setIsDarkMode(true) :
+    setIsDarkMode(!isDarkMode)
   }
 
   const colors = isDarkMode ? darkTheme : lightTheme

@@ -16,43 +16,26 @@ import {
 } from "react-native"
 import { Feather } from "@expo/vector-icons"
 import { useTheme } from "../../Context/ThemeContext"
-import DateTimePicker from "@react-native-community/datetimepicker"
 import { format } from "date-fns"
 
-interface ReceivedTables {
-  floor_name?: string
-  id: number
-  name: string
-}
+// Import the ReservationProcess component
+import ReservationProcess from "./ReservationProcess"
 
 // Types and Interfaces
 interface Reservation {
   id: string
-  email: string
-  full_name: string
-  date: string
-  time: string
+  email?: string
+  full_name?: string
+  date?: string
+  time?: string
   internal_note?: string
   source?: string
-  number_of_guests: string
-  cancellation_note?: string
-  cancellation_reason?: { id: number; name: string }
-  tableSet?: number
-  phone: string
-  tables?: ReceivedTables[]
-  status: string
+  number_of_guests?: string
+  phone?: string
+  status?: string
   commenter?: string
   review?: boolean
-  allergies?: string
-  occasion?: { id: number; name: string }
-  guests?: number
-  floor_name?: string
-  table_name?: string
-  loading?: boolean
-  seq_id?: string
-  selected?: boolean
-  tags?: string[]
-  created_at?: string
+  occasion?: number | null
 }
 
 interface Client {
@@ -118,7 +101,8 @@ const AddReservationModal = (props: AddReservationModalProps) => {
     comment: "",
   })
   const [createUser, setCreateUser] = useState(true)
-  const [showProcess, setShowProcess] = useState(false)
+  // Replace the showProcess state with showReservationProcess
+  const [showReservationProcess, setShowReservationProcess] = useState(false)
   const [newClient, setNewClient] = useState(false)
   const [findClient, setFindClient] = useState(true)
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
@@ -229,7 +213,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
         source: formData.source || "BACK_OFFICE",
         number_of_guests: data.guests ? data.guests.toString() : "",
         status: "PENDING",
-        occasion: selectedOccasion !== null ? occasions.find((o) => o.id === selectedOccasion) : undefined,
+        occasion: selectedOccasion,
       }
 
       props.onSubmit(reservationData)
@@ -260,7 +244,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
         source: newCustomerData.source || "BACK_OFFICE",
         number_of_guests: data.guests ? data.guests.toString() : "",
         status: "PENDING",
-        occasion: selectedOccasion !== null ? occasions.find((o) => o.id === selectedOccasion) : undefined,
+        occasion: selectedOccasion,
       }
 
       props.onSubmit(reservationData)
@@ -278,15 +262,13 @@ const AddReservationModal = (props: AddReservationModalProps) => {
       const reservationData: Reservation = {
         id: Date.now().toString(),
         full_name: `${newCustomerData.first_name} ${newCustomerData.last_name}`,
-        email: newCustomerData.email,
-        phone: newCustomerData.phone,
         date: data.reserveDate || "",
         time: data.time || "",
         source: newCustomerData.source || "BACK_OFFICE",
         internal_note: newCustomerData.note,
         number_of_guests: data.guests ? data.guests.toString() : "",
         status: "PENDING",
-        occasion: selectedOccasion !== null ? occasions.find((o) => o.id === selectedOccasion) : undefined,
+        occasion: selectedOccasion,
       }
 
       props.onSubmit(reservationData)
@@ -309,6 +291,36 @@ const AddReservationModal = (props: AddReservationModalProps) => {
     if (selectedTime) {
       setData({ ...data, time: format(selectedTime, "HH:mm") })
     }
+  }
+
+  // Replace the renderDateTimeModal function with this new function
+  const renderReservationProcess = () => {
+    // Only render the component when it's needed
+    if (!showReservationProcess) return null;
+    
+    return (
+      <ReservationProcess
+        isVisible={showReservationProcess}
+        onClose={() => setShowReservationProcess(false)}
+        initialData={
+          data.reserveDate
+            ? {
+                reserveDate: data.reserveDate,
+                time: data.time,
+                guests: data.guests,
+              }
+            : undefined
+        }
+        onComplete={(selectedData) => {
+          setData({
+            reserveDate: selectedData.reserveDate,
+            time: selectedData.time,
+            guests: selectedData.guests,
+          })
+          setShowReservationProcess(false)
+        }}
+      />
+    );
   }
 
   // Render client search screen
@@ -522,9 +534,13 @@ const AddReservationModal = (props: AddReservationModalProps) => {
               </TouchableOpacity>
             </View>
 
+            {/* Replace the dateTimeButton TouchableOpacity onClick handler */}
             <TouchableOpacity
               style={[styles.dateTimeButton, { backgroundColor: colors.card }]}
-              onPress={() => setShowProcess(true)}
+              onPress={() => {
+                console.log("Opening reservation process");  // Add logging
+                setShowReservationProcess(true);
+              }}
             >
               <View style={styles.dateTimeItem}>
                 <Text style={[styles.dateTimeLabel, { color: colors.subtext }]}>Date</Text>
@@ -689,7 +705,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
 
           <TouchableOpacity
             style={[styles.dateTimeButton, { backgroundColor: colors.card }]}
-            onPress={() => setShowProcess(true)}
+            onPress={() => setShowReservationProcess(true)}
           >
             <View style={styles.dateTimeItem}>
               <Text style={[styles.dateTimeLabel, { color: colors.subtext }]}>Date</Text>
@@ -721,89 +737,12 @@ const AddReservationModal = (props: AddReservationModalProps) => {
     </KeyboardAvoidingView>
   )
 
-  // Render date/time/guests selection modal
-  const renderDateTimeModal = () => (
-    <Modal visible={showProcess} transparent animationType="slide">
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContainer, { backgroundColor: colors.card }]}>
-          <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Reservation Details</Text>
-            <TouchableOpacity onPress={() => setShowProcess(false)}>
-              <Feather name="x" size={24} color={colors.text} />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.modalContent}>
-            <Text style={[styles.modalSectionTitle, { color: colors.text }]}>Date</Text>
-            <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: colors.background }]}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <Text style={[styles.modalButtonText, { color: colors.text }]}>{data.reserveDate || "Select date"}</Text>
-              <Feather name="calendar" size={20} color={colors.text} />
-            </TouchableOpacity>
-
-            {showDatePicker && (
-              <DateTimePicker
-                value={data.reserveDate ? new Date(data.reserveDate) : new Date()}
-                mode="date"
-                display="default"
-                onChange={handleDateChange}
-              />
-            )}
-
-            <Text style={[styles.modalSectionTitle, { color: colors.text }]}>Time</Text>
-            <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: colors.background }]}
-              onPress={() => setShowTimePicker(true)}
-            >
-              <Text style={[styles.modalButtonText, { color: colors.text }]}>{data.time || "Select time"}</Text>
-              <Feather name="clock" size={20} color={colors.text} />
-            </TouchableOpacity>
-
-            {showTimePicker && (
-              <DateTimePicker
-                value={data.time ? new Date(`2023-01-01T${data.time}:00`) : new Date(new Date().setHours(19, 0, 0, 0))}
-                mode="time"
-                display="default"
-                onChange={handleTimeChange}
-              />
-            )}
-
-            <Text style={[styles.modalSectionTitle, { color: colors.text }]}>Number of Guests</Text>
-            <View style={styles.guestSelector}>
-              <TouchableOpacity
-                style={[styles.guestButton, { backgroundColor: colors.background }]}
-                onPress={() => setData({ ...data, guests: Math.max(1, data.guests - 1) })}
-              >
-                <Feather name="minus" size={20} color={colors.text} />
-              </TouchableOpacity>
-              <Text style={[styles.guestCount, { color: colors.text }]}>{data.guests}</Text>
-              <TouchableOpacity
-                style={[styles.guestButton, { backgroundColor: colors.background }]}
-                onPress={() => setData({ ...data, guests: data.guests + 1 })}
-              >
-                <Feather name="plus" size={20} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-
-          <TouchableOpacity
-            style={[styles.confirmButton, { backgroundColor: colors.primary }]}
-            onPress={() => setShowProcess(false)}
-          >
-            <Text style={styles.confirmButtonText}>Confirm</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  )
-
+  // Replace the renderDateTimeModal() call at the bottom of the component with renderReservationProcess()
   return (
     <Modal visible={props.isVisible} animationType="slide" transparent={false}>
       <View style={{ flex: 1, backgroundColor: colors.background }}>
         {findClient ? renderClientSearch() : renderClientDetails()}
-        {renderDateTimeModal()}
+        {renderReservationProcess()}
       </View>
     </Modal>
   )
@@ -970,7 +909,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   tagText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "500",
   },
   formContainer: {

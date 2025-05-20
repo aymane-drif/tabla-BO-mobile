@@ -24,6 +24,11 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
   userName = "TT",
 }) => {
   const { colors } = useTheme()
+  const {toggleTheme} = useTheme()
+    const onDarkModeToggle = () => {
+        toggleTheme()
+        
+    }
   return (
     <View style={[styles.container, { backgroundColor: colors.card }]}>
       {/* Logo */}
@@ -33,16 +38,20 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
         resizeMode="contain"
       />
 
-      {/* Today Button
+
       <TouchableOpacity
         style={[styles.todayButton, { backgroundColor: colors.background, borderColor: colors.border }]}
         onPress={onTodayPress}
       >
         <Text style={[styles.todayText, { color: colors.text }]}>Today</Text>
-      </TouchableOpacity> */}
+      </TouchableOpacity>
 
       {/* Right Side Icons */}
       <View style={styles.rightContainer}>
+        {/* DarkMode Toggle */}
+         <TouchableOpacity style={styles.iconButton} onPress={onDarkModeToggle}>
+          <Feather name="moon" size={20} color={colors.text} />
+        </TouchableOpacity>
         {/* Notification Bell */}
         <Link href="/Notifications" asChild>
           <TouchableOpacity
@@ -75,11 +84,8 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
 
         {/* Profile Avatar */}
         <Link href="/Profile" asChild>
-          <TouchableOpacity
-            style={styles.avatarButton}
-            onPress={onProfilePress}
-          >
-            <Feather name="user" size={20} color="black" />
+          <TouchableOpacity style={styles.avatarButton} onPress={onProfilePress}>
+            <Feather name="user" size={20} color={colors.text} />
           </TouchableOpacity>
         </Link>
       </View>
@@ -117,7 +123,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 10,
-    marginTop: 30,
     height: 60,
   },
   logo: {
@@ -138,6 +143,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
+  iconButton: {
+    marginLeft: 5,
+    marginRight: 5,
+    padding: 8,
+  },
   languageButton: {
     marginLeft: 16,
   },
@@ -152,7 +162,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
-    marginLeft: 16,
+    marginLeft: 5,
     backgroundColor: "#8BAD62"
   },
   avatarText: {

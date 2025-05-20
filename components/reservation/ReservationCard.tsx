@@ -37,7 +37,7 @@ const ReservationCard: React.FC<ReservationCardProps> = ({
       case "FULFILLED":
         return { backgroundColor: "#7b2cbf1A", color: "#7b2cbf" }
       case "NO_SHOW":
-        return { backgroundColor: "#9c66441A", color: "#9c6644" }
+        return { backgroundColor: "#b75d691A", color: "#b75d69" }
       default: // CANCELED
         return { backgroundColor: "#FF4B4B1A", color: "#FF4B4B" }
     }

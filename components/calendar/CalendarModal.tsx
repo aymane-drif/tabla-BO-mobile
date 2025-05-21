@@ -29,11 +29,7 @@ const CalendarModal: React.FC<CalendarModalProps> = ({
   const [isLoading, setIsLoading] = useState(false)
 
   // Mock available days - in a real app, this would come from an API
-  const [availableDays, setAvailableDays] = useState([
-    { day: 10, isAvailable: false },
-    { day: 15, isAvailable: false },
-    { day: 20, isAvailable: false },
-  ])
+  const [availableDays, setAvailableDays] = useState<{ day: number; isAvailable: boolean }[]>([])
 
   const handleDateSelect = (date: Date) => {
     setSelectedDate(date)

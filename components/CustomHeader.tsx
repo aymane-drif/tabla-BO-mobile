@@ -49,9 +49,11 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
       {/* Right Side Icons */}
       <View style={styles.rightContainer}>
         {/* DarkMode Toggle */}
-         <TouchableOpacity style={styles.iconButton} onPress={onDarkModeToggle}>
+         {/* <TouchableOpacity style={styles.iconButton} onPress={onDarkModeToggle}>
           <Feather name="moon" size={20} color={colors.text} />
-        </TouchableOpacity>
+        </TouchableOpacity> */}
+
+        
         {/* Notification Bell */}
         <TouchableOpacity style={styles.iconButton} onPress={onNotificationPress}>
           <Feather name="bell" size={20} color={colors.text} />

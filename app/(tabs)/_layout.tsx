@@ -74,7 +74,7 @@ export default function TabLayout() {
             <CustomHeader
               onTodayPress={() => {
                 console.log("Today button pressed") // Add logging
-                setShowReservationProcess(true)
+                setShowCalendar(true)
               }}
               onNotificationPress={() => console.log("Notification pressed")}
               onLanguagePress={() => console.log("Language pressed")}
@@ -132,7 +132,7 @@ export default function TabLayout() {
         initialDate={selectedDate}
       />
 
-      {/* Reservation Process Modal */}
+      {/* Reservation Process Modal
       {showReservationProcess && (
         <ReservationProcess
           isVisible={showReservationProcess}
@@ -141,7 +141,7 @@ export default function TabLayout() {
           maxGuests={15}
           minGuests={1}
         />
-      )}
+      )} */}
     </>
   )
 }

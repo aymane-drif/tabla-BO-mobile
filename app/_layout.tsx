@@ -1,10 +1,11 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { SplashScreen, Stack, useRouter } from 'expo-router';
+import { SplashScreen, Stack, useRouter, usePathname } from 'expo-router';
 import { useEffect } from 'react';
 import { useColorScheme, View, ActivityIndicator } from 'react-native';
 import { AuthProvider, useAuth } from '@/Context/AuthContext';
+import { useTheme } from '@/Context/ThemeContext';
 
 export {
   ErrorBoundary,
@@ -22,6 +23,8 @@ function RootLayoutNav() {
   const { isLoading, isAuthenticated, user } = useAuth();
   const colorScheme = useColorScheme();
   const router = useRouter();
+  const pathName = usePathname();
+  const {colors} = useTheme();
 
   useEffect(() => {
     if (isLoading) {
@@ -52,6 +55,8 @@ function RootLayoutNav() {
     }
   }, [isLoading, isAuthenticated, user, router]);
 
+  console.log(pathName);
+
   if (isLoading) {
     console.log("RootLayoutNav Render: isLoading is true. Showing ActivityIndicator.");
     return (
@@ -73,6 +78,14 @@ function RootLayoutNav() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="Profile" options={{ presentation: 'modal' }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="Notifications" options={{ 
+          headerShown: true,
+          headerStyle: {
+          backgroundColor: (colors.background),
+          },
+          headerTintColor: (colors.text),
+          animation: 'none',
+         }} />
       </Stack>
     </ThemeProvider>
   );

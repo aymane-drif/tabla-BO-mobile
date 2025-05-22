@@ -12,6 +12,7 @@ import {
   ScrollView,
   SafeAreaView,
   Alert,
+  Button,
 } from "react-native"
 import { format } from "date-fns"
 import { Feather } from "@expo/vector-icons"
@@ -24,6 +25,7 @@ import EditReservationModal from "../../components/reservation/EditReservationMo
 import ActionConfirmation from "../../components/reservation/ActionConfirmation"
 import ColumnCustomizationModal from "../../components/reservation/ColumnCustomizationModal"
 import AddReservationModal from "@/components/reservation/AddReservationModal"
+import { ErrorBoundaryProps, useRouter } from "expo-router"
 
 // Types and Interfaces
 export interface ReceivedTables {
@@ -159,6 +161,16 @@ const getStatusLabel = (status: string): string => {
   }
 }
 
+export function ErrorBoundary(props: ErrorBoundaryProps) {
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <Text>Something went wrong with Notifications.</Text>
+      <Text>{props.error.message}</Text>
+      <Button onPress={props.retry} title="Try Again" />
+    </View>
+  );
+}
+
 // Main ReservationsScreen Component
 const ReservationsScreen = () => {
   const { isDarkMode, colors } = useTheme()
@@ -201,6 +213,7 @@ const ReservationsScreen = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [filterDate, setFilterDate] = useState<boolean>(true)
   const [showFilterModal, setShowFilterModal] = useState<boolean>(false)
+  const router = useRouter();
 
   // Reservation progress data
   const [reservationProgressData, setReservationProgressData] = useState<DataTypes>({
@@ -512,6 +525,10 @@ const ReservationsScreen = () => {
     setShowFilterModal(false)
   }
 
+    useEffect(() => {
+      // router.replace('/select-restaurant'); 
+    }
+    , []);
   // Render reservation card
   const renderReservationCard = ({ item }: { item: Reservation }) => (
     <ReservationCard

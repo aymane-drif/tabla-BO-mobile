@@ -2,6 +2,8 @@ import { createContext, useContext, useState, useEffect } from "react";
 import axios from "axios"; // Main axios for login/logout within context
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from "@/api/axiosInstance"; // Import the configured axios instance
+import messaging from '@react-native-firebase/messaging';
+import { Platform } from "react-native";
 
 // Define the shape of your auth state and context
 interface User {
@@ -29,7 +31,7 @@ interface AuthContextType extends AuthState {
   getTokens: () => { accessToken: string | null; refreshToken: string | null; restaurantId: string | null };
   refreshAccessToken: () => Promise<boolean>;
   updateRestaurantSelection: (restaurantId: string) => Promise<void>;
-  // setAuthState: React.Dispatch<React.SetStateAction<AuthState>>; // Consider if still needed externally
+  registerDeviceForNotifications: () => Promise<void>; // New function
 }
 
 const AUTH_ACCESS_TOKEN_KEY = 'authAccessToken';
@@ -81,14 +83,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [authState.accessToken, authState.restaurantId, authState.user]);
 
+  const registerDeviceForNotifications = async () => {
+    try {
+      // Request permission for iOS and Android 13+
+      if (Platform.OS === 'ios') {
+        const authStatus = await messaging().requestPermission();
+        const enabled =
+          authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+          authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+        if (!enabled) {
+          console.log('User has not granted notification permission');
+          return;
+        }
+      } else { // Android
+        // For Android 13 (API level 33) and above, POST_NOTIFICATIONS permission is needed.
+        // messaging().requestPermission() should ideally handle this.
+        // If not, you might need PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+        // For simplicity, we assume messaging().requestPermission() covers it or permissions are granted.
+      }
+
+      const fcmToken = await messaging().getToken();
+      if (fcmToken) {
+        // console.log("FCM Token:", fcmToken);
+        // Send this token to your backend
+        const res = await api.post('/api/v1/device-tokens/', { token: fcmToken, device_type: Platform.OS?.toUpperCase() || 'WEB'})//:  }); // Example endpoint
+        console.log("FCM token registered successfully:", res.data);
+        // console.log('FCM token sent to server successfully.');
+      } else {
+        console.log("Failed to get FCM token");
+      }
+    } catch (error) {
+      if (error && typeof error === 'object' && 'response' in error && error.response && typeof error.response === 'object' && 'data' in error.response) {
+        // @ts-ignore
+        console.log("Error registering device for notifications:", error.response.data);
+      } else {
+        console.log("Error registering device for notifications:", error);
+      }
+    }
+  };
+
+  const unregisterDeviceToken = async () => {
+    try {
+      const fcmToken = await messaging().getToken(); // Get current token to unregister
+      if (fcmToken) {
+        // Call your backend to remove/invalidate this token for the user
+        await api.delete('/api/v1/device-tokens/', { data: { token: fcmToken } }); // Example endpoint
+        // console.log('FCM token unregistered from server.');
+        // You might also delete the token locally if Firebase allows, but usually server-side invalidation is key.
+        // await messaging().deleteToken(); // This deletes the token, new one will be generated next time.
+      }
+    } catch (error) {
+      console.error("Error unregistering device token:", error);
+    }
+  };
 
   const login = async (credentials: any) => {
     setAuthState(prev => ({ ...prev, isLoading: true }));
     try {
-      console.log("Logging in with credentials:", credentials); // Log credentials for debugging
-      console.log("defaults:", api.defaults); // Log credentials for debugging
       const response = await api.post("/api/v1/bo/managers/login/", credentials);
-      console.log("Login response:", response.data); // Log the entire response for debugging
       const { access, refresh, user } = response.data; // Adjusted to match typical token names and user object
 
       if (!access || !user) {
@@ -113,7 +165,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await AsyncStorage.setItem(RESTAURANT_ID_KEY, userData.restaurantId);
       }
 
-
       setAuthState({
         accessToken: access,
         refreshToken: refresh || null,
@@ -122,6 +173,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading: false,
         user: userData,
       });
+      await registerDeviceForNotifications(); // Register FCM token on login
     } catch (error: any) {
       console.error("Login failed:",error, error.response?.data || error.message);
       // Ensure state is reset correctly on failure
@@ -142,10 +194,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    console.log("Logging out...");
-    // Optionally, call a logout endpoint on your API
-    // try { await api.post("/api/auth/logout"); } catch (e) { console.error("Logout API call failed", e); }
-    
+    await unregisterDeviceToken(); // Unregister FCM token on logout
+
     await AsyncStorage.removeItem(AUTH_ACCESS_TOKEN_KEY);
     await AsyncStorage.removeItem(AUTH_REFRESH_TOKEN_KEY);
     await AsyncStorage.removeItem(RESTAURANT_ID_KEY);
@@ -164,12 +214,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshAccessToken = async (): Promise<boolean> => {
     const currentRefreshToken = authState.refreshToken;
     if (!currentRefreshToken) {
-      console.log("Refresh token not available.");
       await logout(); // Logout if no refresh token
       return false;
     }
 
-    console.log("Attempting to refresh access token...");
     try {
       const response = await axios.post("https://api.dev.tabla.ma/api/auth/token/refresh", { refresh: currentRefreshToken });
       const { access: newAccessToken, refresh: newRefreshedToken } = response.data; // Assuming 'access' and 'refresh'
@@ -196,7 +244,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ...prev,
         ...updatedAuthState,
       }));
-      console.log("Access token refreshed successfully.");
       return true;
     } catch (error) {
       console.error("Token refresh failed:", error);
@@ -221,7 +268,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user: updatedUser,
       }));
       api.defaults.headers.common['X-Restaurant-ID'] = newRestaurantId;
-      console.log("Restaurant selection updated to:", newRestaurantId);
     } catch (error) {
       console.error("Failed to update restaurant selection in storage", error);
     }
@@ -229,7 +275,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const checkToken = async () => {
-      console.log("AuthContext: Checking token from storage...");
       try {
         const [storedAccessToken, storedRefreshToken, storedUserJson, storedRestaurantIdLegacy] = await Promise.all([
           AsyncStorage.getItem(AUTH_ACCESS_TOKEN_KEY),
@@ -237,9 +282,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           AsyncStorage.getItem(AUTH_USER_KEY),
           AsyncStorage.getItem(RESTAURANT_ID_KEY) // Legacy or direct restaurant ID
         ]);
-
-        console.log('AuthContext checkToken - storedAccessToken:', storedAccessToken);
-        console.log('AuthContext checkToken - storedUserJson:', storedUserJson);
 
         if (storedAccessToken && storedUserJson) {
           const storedUser: User = JSON.parse(storedUserJson);
@@ -251,9 +293,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isLoading: false,
             user: storedUser,
           });
-          console.log("AuthContext: User authenticated from storage.", storedUser);
+          // If user is authenticated from storage, ensure their device token is registered
+          registerDeviceForNotifications();
         } else {
-          console.log("AuthContext: No valid session found in storage.");
           setAuthState(prev => ({
             ...prev,
             accessToken: null,
@@ -286,29 +328,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (authState.isAuthenticated && authState.refreshToken) {
       const REFRESH_INTERVAL = 50 * 60 * 1000; // 50 minutes
-      console.log(`Starting periodic token refresh every ${REFRESH_INTERVAL / (60 * 1000)} minutes.`);
       intervalId = setInterval(async () => {
-        console.log("Periodic refresh: Attempting to refresh token...");
         await refreshAccessToken();
       }, REFRESH_INTERVAL);
     } else {
       if (intervalId) {
-        console.log("Clearing periodic token refresh timer.");
         clearInterval(intervalId);
       }
     }
 
     return () => {
       if (intervalId) {
-        console.log("Cleaning up periodic token refresh timer.");
         clearInterval(intervalId);
       }
     };
   }, [authState.isAuthenticated, authState.refreshToken]);
 
-
   return (
-    <AuthContext.Provider value={{ ...authState, login, logout, getTokens, refreshAccessToken, updateRestaurantSelection }}>
+    <AuthContext.Provider value={{ ...authState, login, logout, getTokens, refreshAccessToken, updateRestaurantSelection, registerDeviceForNotifications }}>
       {children}
     </AuthContext.Provider>
   );

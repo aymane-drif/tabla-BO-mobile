@@ -143,11 +143,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  iconButton: {
-    marginLeft: 5,
-    marginRight: 5,
-    padding: 8,
-  },
   languageButton: {
     marginLeft: 16,
   },

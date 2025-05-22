@@ -1,945 +1,391 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, Alert, AppState } from 'react-native';
-import { useNavigation } from '@react-navigation/native'; // Assuming you use React Navigation
-// import * as Notifications from 'expo-notifications';
-import NotificationItem from '../components/notification/NotificationItem'; // Adjust path as needed
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator, Button, Platform } from 'react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import NotificationItem from '../components/notification/NotificationItem';
+import { useTheme } from '../Context/ThemeContext';
+import { api } from '@/api/axiosInstance';
+import messaging from '@react-native-firebase/messaging';
+import { useAuth } from '../Context/AuthContext'; // Import useAuth
+import { ErrorBoundaryProps, useRouter } from 'expo-router';
 import {PermissionsAndroid} from 'react-native';
-export const dummyNotifications = [
-  {
-    "user_notification_id": 21,
-    "notification_id": 4,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Created: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been created.",
-    "data": {
-      "action": "created",
-      "status": "APPROVED",
-      "event_type": "reservation_created_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T21:36:10.489309Z",
-    "is_read": false,
-    "read_at": null
-  },
-  {
-    "user_notification_id": 22,
-    "notification_id": 5,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Updated: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been updated.",
-    "data": {
-      "action": "updated",
-      "status": "PENDING",
-      "event_type": "reservation_updated_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T22:36:10.489309Z",
-    "is_read": true,
-    "read_at": "2025-05-12T22:40:10.489309Z"
-  },
-  {
-    "user_notification_id": 21,
-    "notification_id": 4,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Created: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been created.",
-    "data": {
-      "action": "created",
-      "status": "APPROVED",
-      "event_type": "reservation_created_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T21:36:10.489309Z",
-    "is_read": false,
-    "read_at": null
-  },
-  {
-    "user_notification_id": 22,
-    "notification_id": 5,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Updated: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been updated.",
-    "data": {
-      "action": "updated",
-      "status": "PENDING",
-      "event_type": "reservation_updated_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T22:36:10.489309Z",
-    "is_read": true,
-    "read_at": "2025-05-12T22:40:10.489309Z"
-  },
-  {
-    "user_notification_id": 21,
-    "notification_id": 4,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Created: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been created.",
-    "data": {
-      "action": "created",
-      "status": "APPROVED",
-      "event_type": "reservation_created_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T21:36:10.489309Z",
-    "is_read": false,
-    "read_at": null
-  },
-  {
-    "user_notification_id": 22,
-    "notification_id": 5,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Updated: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been updated.",
-    "data": {
-      "action": "updated",
-      "status": "PENDING",
-      "event_type": "reservation_updated_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T22:36:10.489309Z",
-    "is_read": true,
-    "read_at": "2025-05-12T22:40:10.489309Z"
-  },
-  {
-    "user_notification_id": 21,
-    "notification_id": 4,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Created: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been created.",
-    "data": {
-      "action": "created",
-      "status": "APPROVED",
-      "event_type": "reservation_created_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T21:36:10.489309Z",
-    "is_read": false,
-    "read_at": null
-  },
-  {
-    "user_notification_id": 22,
-    "notification_id": 5,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Updated: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been updated.",
-    "data": {
-      "action": "updated",
-      "status": "PENDING",
-      "event_type": "reservation_updated_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T22:36:10.489309Z",
-    "is_read": true,
-    "read_at": "2025-05-12T22:40:10.489309Z"
-  },
-  {
-    "user_notification_id": 21,
-    "notification_id": 4,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Created: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been created.",
-    "data": {
-      "action": "created",
-      "status": "APPROVED",
-      "event_type": "reservation_created_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T21:36:10.489309Z",
-    "is_read": false,
-    "read_at": null
-  },
-  {
-    "user_notification_id": 22,
-    "notification_id": 5,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Updated: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been updated.",
-    "data": {
-      "action": "updated",
-      "status": "PENDING",
-      "event_type": "reservation_updated_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T22:36:10.489309Z",
-    "is_read": true,
-    "read_at": "2025-05-12T22:40:10.489309Z"
-  },
-  {
-    "user_notification_id": 21,
-    "notification_id": 4,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Created: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been created.",
-    "data": {
-      "action": "created",
-      "status": "APPROVED",
-      "event_type": "reservation_created_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T21:36:10.489309Z",
-    "is_read": false,
-    "read_at": null
-  },
-  {
-    "user_notification_id": 22,
-    "notification_id": 5,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Updated: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been updated.",
-    "data": {
-      "action": "updated",
-      "status": "PENDING",
-      "event_type": "reservation_updated_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T22:36:10.489309Z",
-    "is_read": true,
-    "read_at": "2025-05-12T22:40:10.489309Z"
-  },
-  {
-    "user_notification_id": 21,
-    "notification_id": 4,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Created: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been created.",
-    "data": {
-      "action": "created",
-      "status": "APPROVED",
-      "event_type": "reservation_created_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T21:36:10.489309Z",
-    "is_read": false,
-    "read_at": null
-  },
-  {
-    "user_notification_id": 22,
-    "notification_id": 5,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Updated: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been updated.",
-    "data": {
-      "action": "updated",
-      "status": "PENDING",
-      "event_type": "reservation_updated_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T22:36:10.489309Z",
-    "is_read": true,
-    "read_at": "2025-05-12T22:40:10.489309Z"
-  },
-  {
-    "user_notification_id": 21,
-    "notification_id": 4,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Created: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been created.",
-    "data": {
-      "action": "created",
-      "status": "APPROVED",
-      "event_type": "reservation_created_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T21:36:10.489309Z",
-    "is_read": false,
-    "read_at": null
-  },
-  {
-    "user_notification_id": 22,
-    "notification_id": 5,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Updated: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been updated.",
-    "data": {
-      "action": "updated",
-      "status": "PENDING",
-      "event_type": "reservation_updated_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T22:36:10.489309Z",
-    "is_read": true,
-    "read_at": "2025-05-12T22:40:10.489309Z"
-  },
-  {
-    "user_notification_id": 21,
-    "notification_id": 4,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Created: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been created.",
-    "data": {
-      "action": "created",
-      "status": "APPROVED",
-      "event_type": "reservation_created_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T21:36:10.489309Z",
-    "is_read": false,
-    "read_at": null
-  },
-  {
-    "user_notification_id": 22,
-    "notification_id": 5,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Updated: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been updated.",
-    "data": {
-      "action": "updated",
-      "status": "PENDING",
-      "event_type": "reservation_updated_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T22:36:10.489309Z",
-    "is_read": true,
-    "read_at": "2025-05-12T22:40:10.489309Z"
-  },
-  {
-    "user_notification_id": 21,
-    "notification_id": 4,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Created: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been created.",
-    "data": {
-      "action": "created",
-      "status": "APPROVED",
-      "event_type": "reservation_created_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T21:36:10.489309Z",
-    "is_read": false,
-    "read_at": null
-  },
-  {
-    "user_notification_id": 22,
-    "notification_id": 5,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Updated: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been updated.",
-    "data": {
-      "action": "updated",
-      "status": "PENDING",
-      "event_type": "reservation_updated_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T22:36:10.489309Z",
-    "is_read": true,
-    "read_at": "2025-05-12T22:40:10.489309Z"
-  },
-  {
-    "user_notification_id": 21,
-    "notification_id": 4,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Created: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been created.",
-    "data": {
-      "action": "created",
-      "status": "APPROVED",
-      "event_type": "reservation_created_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T21:36:10.489309Z",
-    "is_read": false,
-    "read_at": null
-  },
-  {
-    "user_notification_id": 22,
-    "notification_id": 5,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Updated: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been updated.",
-    "data": {
-      "action": "updated",
-      "status": "PENDING",
-      "event_type": "reservation_updated_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T22:36:10.489309Z",
-    "is_read": true,
-    "read_at": "2025-05-12T22:40:10.489309Z"
-  },
-  {
-    "user_notification_id": 21,
-    "notification_id": 4,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Created: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been created.",
-    "data": {
-      "action": "created",
-      "status": "APPROVED",
-      "event_type": "reservation_created_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T21:36:10.489309Z",
-    "is_read": false,
-    "read_at": null
-  },
-  {
-    "user_notification_id": 22,
-    "notification_id": 5,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Updated: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been updated.",
-    "data": {
-      "action": "updated",
-      "status": "PENDING",
-      "event_type": "reservation_updated_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T22:36:10.489309Z",
-    "is_read": true,
-    "read_at": "2025-05-12T22:40:10.489309Z"
-  },
-  {
-    "user_notification_id": 21,
-    "notification_id": 4,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Created: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been created.",
-    "data": {
-      "action": "created",
-      "status": "APPROVED",
-      "event_type": "reservation_created_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T21:36:10.489309Z",
-    "is_read": false,
-    "read_at": null
-  },
-  {
-    "user_notification_id": 22,
-    "notification_id": 5,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Updated: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been updated.",
-    "data": {
-      "action": "updated",
-      "status": "PENDING",
-      "event_type": "reservation_updated_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T22:36:10.489309Z",
-    "is_read": true,
-    "read_at": "2025-05-12T22:40:10.489309Z"
-  },
-  {
-    "user_notification_id": 21,
-    "notification_id": 4,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Created: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been created.",
-    "data": {
-      "action": "created",
-      "status": "APPROVED",
-      "event_type": "reservation_created_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T21:36:10.489309Z",
-    "is_read": false,
-    "read_at": null
-  },
-  {
-    "user_notification_id": 22,
-    "notification_id": 5,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Updated: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been updated.",
-    "data": {
-      "action": "updated",
-      "status": "PENDING",
-      "event_type": "reservation_updated_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T22:36:10.489309Z",
-    "is_read": true,
-    "read_at": "2025-05-12T22:40:10.489309Z"
-  },
-  {
-    "user_notification_id": 21,
-    "notification_id": 4,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Created: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been created.",
-    "data": {
-      "action": "created",
-      "status": "APPROVED",
-      "event_type": "reservation_created_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T21:36:10.489309Z",
-    "is_read": false,
-    "read_at": null
-  },
-  {
-    "user_notification_id": 22,
-    "notification_id": 5,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Updated: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been updated.",
-    "data": {
-      "action": "updated",
-      "status": "PENDING",
-      "event_type": "reservation_updated_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T22:36:10.489309Z",
-    "is_read": true,
-    "read_at": "2025-05-12T22:40:10.489309Z"
-  },
-  {
-    "user_notification_id": 21,
-    "notification_id": 4,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Created: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been created.",
-    "data": {
-      "action": "created",
-      "status": "APPROVED",
-      "event_type": "reservation_created_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T21:36:10.489309Z",
-    "is_read": false,
-    "read_at": null
-  },
-  {
-    "user_notification_id": 22,
-    "notification_id": 5,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Updated: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been updated.",
-    "data": {
-      "action": "updated",
-      "status": "PENDING",
-      "event_type": "reservation_updated_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T22:36:10.489309Z",
-    "is_read": true,
-    "read_at": "2025-05-12T22:40:10.489309Z"
-  },
-  {
-    "user_notification_id": 21,
-    "notification_id": 4,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Created: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been created.",
-    "data": {
-      "action": "created",
-      "status": "APPROVED",
-      "event_type": "reservation_created_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T21:36:10.489309Z",
-    "is_read": false,
-    "read_at": null
-  },
-  {
-    "user_notification_id": 22,
-    "notification_id": 5,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Updated: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been updated.",
-    "data": {
-      "action": "updated",
-      "status": "PENDING",
-      "event_type": "reservation_updated_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T22:36:10.489309Z",
-    "is_read": true,
-    "read_at": "2025-05-12T22:40:10.489309Z"
-  },
-  {
-    "user_notification_id": 21,
-    "notification_id": 4,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Created: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been created.",
-    "data": {
-      "action": "created",
-      "status": "APPROVED",
-      "event_type": "reservation_created_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T21:36:10.489309Z",
-    "is_read": false,
-    "read_at": null
-  },
-  {
-    "user_notification_id": 22,
-    "notification_id": 5,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Updated: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been updated.",
-    "data": {
-      "action": "updated",
-      "status": "PENDING",
-      "event_type": "reservation_updated_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T22:36:10.489309Z",
-    "is_read": true,
-    "read_at": "2025-05-12T22:40:10.489309Z"
-  },
-  {
-    "user_notification_id": 21,
-    "notification_id": 4,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Created: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been created.",
-    "data": {
-      "action": "created",
-      "status": "APPROVED",
-      "event_type": "reservation_created_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T21:36:10.489309Z",
-    "is_read": false,
-    "read_at": null
-  },
-  {
-    "user_notification_id": 22,
-    "notification_id": 5,
-    "restaurant_id": 1,
-    "restaurant_name": "La Pizza Italiana",
-    "notification_type": "RESERVATION",
-    "title": "Reservation Updated: 417 for La Pizza Italiana",
-    "message": "Reservation for 417 (2 guests) at La Pizza Italiana on 2025-05-15 12:15 has been updated.",
-    "data": {
-      "action": "updated",
-      "status": "PENDING",
-      "event_type": "reservation_updated_lifecycle",
-      "reservation_id": "417",
-      "restaurant_name": "La Pizza Italiana",
-      "restaurant_id_payload": "1"
-    },
-    "created_at": "2025-05-12T22:36:10.489309Z",
-    "is_read": true,
-    "read_at": "2025-05-12T22:40:10.489309Z"
-  }
-];
 
-export type NotificationType = typeof dummyNotifications[0];
-
-type ActiveTab = 'unread' | 'read';
-
-// Basic colors, replace with your app's theme
-const colors = {
-  text: '#333333',
-  textLight: '#ffffff',
-  primary: '#007bff',
-  secondary: '#6c757d',
-  background: '#f8f9fa',
-  cardBackground: '#ffffff',
-  border: '#dddddd',
-  error: '#dc3545',
+export type NotificationType = { // Assuming this structure based on dummy data and web app
+  user_notification_id: number;
+  notification_id: number;
+  restaurant_id: number;
+  restaurant_name: string;
+  notification_type: string; // e.g., 'RESERVATION', 'ALERT'
+  title: string;
+  message: string;
+  data: {
+    action?: string;
+    status?: string;
+    event_type?: string;
+    reservation_id?: string;
+    restaurant_name?: string;
+    restaurant_id_payload?: string;
+    [key: string]: any; // Allow other properties in data
+  };
+  created_at: string;
+  is_read: boolean;
+  read_at: string | null;
 };
 
-const NotificationsScreen = () => {
+interface NotificationsApiResponse {
+  results: NotificationType[];
+  count: number; // Total count of notifications matching filters for the current tab
+}
+
+interface NotificationCountType {
+  read: number;
+  total: number;
+  unread: number;
+}
+
+const PAGE_SIZE = 20;
+type ActiveTab = 'unread' | 'read';
+export function ErrorBoundary(props: ErrorBoundaryProps) {
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <Text>Something went wrong with Notifications.</Text>
+      <Text>{props.error.message}</Text>
+      <Button onPress={props.retry} title="Try Again" />
+    </View>
+  );
+}
+
+const Notifications = () => {
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
+  const navigation = useNavigation();
+  const { isAuthenticated, registerDeviceForNotifications } = useAuth(); // Get auth state
+  const router = useRouter();
   const [notifications, setNotifications] = useState<NotificationType[]>([]);
   const [activeTab, setActiveTab] = useState<ActiveTab>('unread');
-  const navigation = useNavigation();
-  // const notificationListener = useRef<Notifications.Subscription | undefined>(undefined);
-  // const responseListener = useRef<Notifications.Subscription | undefined>(undefined);
-  // const appState = useRef(AppState.currentState);
+  
+  const [isLoading, setIsLoading] = useState(false);
+  const [isPageLoading, setIsPageLoading] = useState(false); // For loading more
+  const [error, setError] = useState<string | null>(null);
+  const [notificationCounts, setNotificationCounts] = useState<NotificationCountType>({ read: 0, total: 0, unread: 0 });
+  
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
 
-
-  // PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
-
-  // useEffect(() => {
-  //   // Listener for when a notification is received while the app is foregrounded
-  //   notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-  //     // You might want to update your notifications list here,
-  //     // or display a custom in-app notification UI
-  //     console.log('Notification received in foreground:', notification);
-  //     // Example: Add to current notifications list if it's new
-  //     // This is a basic example, you'll need to adapt it to your data structure and avoid duplicates
-  //     const newNotificationData = notification.request.content.data as NotificationType; // Adjust type as needed
-  //     // Ensure it's a valid notification structure before adding
-  //     if (newNotificationData && newNotificationData.user_notification_id) {
-  //       setNotifications(prev => {
-  //         // Avoid adding duplicates if the notification is already in the list
-  //         if (prev.find(n => n.user_notification_id === newNotificationData.user_notification_id)) {
-  //           return prev;
-  //         }
-  //         return [newNotificationData, ...prev];
-  //       });
-  //     }
-  //   });
-
-  //   // Listener for when a user interacts with a notification (taps on it)
-  //   // This is fired when the app is foregrounded, backgrounded, or killed
-  //   responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-  //     console.log('Notification response received:', response);
-  //     const notificationData = response.notification.request.content.data as NotificationType; // Adjust type as needed
-
-  //     // Example: Navigate to a specific screen or handle the notification
-  //     if (notificationData?.notification_type === 'RESERVATION' && notificationData?.data?.reservation_id) {
-  //       // @ts-ignore
-  //       navigation.navigate('Reservations', { reservation_id: notificationData.data.reservation_id });
-  //     }
-  //     // You might also want to mark the notification as read here
-  //     if (notificationData && notificationData.user_notification_id) {
-  //         handleMarkAsRead(notificationData, false); // Pass false to avoid navigation if already handled
-  //     }
-  //   });
-
-  //   // Handle initial notification if the app was opened from a notification
-  //   Notifications.getLastNotificationResponseAsync().then(response => {
-  //     if (response && response.notification) {
-  //       console.log('App opened from notification:', response);
-  //       const notificationData = response.notification.request.content.data as NotificationType; // Adjust type as needed
-  //       if (notificationData?.notification_type === 'RESERVATION' && notificationData?.data?.reservation_id) {
-  //         // @ts-ignore
-  //         navigation.navigate('Reservations', { reservation_id: notificationData.data.reservation_id });
-  //       }
-  //        if (notificationData && notificationData.user_notification_id) {
-  //         handleMarkAsRead(notificationData, false); // Pass false to avoid navigation if already handled
-  //       }
-  //     }
-  //   });
-
-  //   return () => {
-  //     if (notificationListener.current) {
-  //       Notifications.removeNotificationSubscription(notificationListener.current);
-  //     }
-  //     if (responseListener.current) {
-  //       Notifications.removeNotificationSubscription(responseListener.current);
-  //     }
-  //   };
-  // }, [navigation]);
-
-
-  useEffect(() => {
-    // Initialize with dummy data, ensuring proper is_read status
-    // In a real app, you'd fetch this data
-    const initialNotifications = dummyNotifications.map((n,i) => ({...n, user_notification_id: n.user_notification_id+i*Math.random()}));
-    setNotifications(initialNotifications);
+  const fetchNotificationCounts = useCallback(async () => {
+    try {
+      const response = await api.get<NotificationCountType>('/api/v1/notifications/count/');
+      setNotificationCounts(response.data || { read: 0, total: 0, unread: 0 });
+    } catch (err) {
+      console.error('Failed to fetch notification counts:', err);
+      // setError('Failed to load notification counts.'); // Optionally show error for counts
+    }
   }, []);
 
-  const unreadCount = notifications.filter(n => !n.is_read).length;
-  const readCount = notifications.filter(n => n.is_read).length;
+  const fetchNotifications = useCallback(async (page: number, tab: ActiveTab, isRefresh: boolean = false) => {
+    if (isRefresh) {
+      setIsLoading(true);
+      setNotifications([]); // Clear previous notifications on refresh
+    } else {
+      setIsPageLoading(true); // Loading more indicator
+    }
+    setError(null);
 
-  const handleMarkAsRead = useCallback((notificationToMark: NotificationType, shouldNavigate = true) => {
-    setNotifications(prevNotifications =>
-      prevNotifications.map(n =>
-        n.user_notification_id === notificationToMark.user_notification_id
-          ? { ...n, is_read: true, read_at: new Date().toISOString() }
+    try {
+      const params = { page_size: PAGE_SIZE, page, read: tab === 'read' };
+      const response = await api.get<NotificationsApiResponse>('/api/v1/notifications/', { params });
+      
+      const apiResults = response.data.results || [];
+      const totalItemsForCurrentTab = response.data.count || 0;
+
+      setNotifications(prev => isRefresh ? apiResults : [...prev, ...apiResults]);
+      setHasMore(page * PAGE_SIZE < totalItemsForCurrentTab);
+      setCurrentPage(page);
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.detail || err.message || 'Failed to fetch notifications';
+      console.error(`Error fetching ${tab} notifications:`, errorMsg, err);
+      setError(errorMsg);
+      if (isRefresh) setNotifications([]);
+      setHasMore(false);
+    } finally {
+      setIsLoading(false);
+      setIsPageLoading(false);
+    }
+    
+  }, []);
+
+  const fetchAndRefresh = useCallback(() => {
+    fetchNotificationCounts();
+    fetchNotifications(1, activeTab, true);
+  }, [fetchNotificationCounts, fetchNotifications, activeTab]);
+
+  useEffect(() => {
+    // router.replace('/select-restaurant'); 
+  }
+  , []);
+  useEffect(() => {
+  // Ensure this is called after fetching notifications
+    if (isAuthenticated) { // Only fetch if authenticated
+      fetchAndRefresh();
+    } else {
+      // Clear notifications if user logs out while on this screen
+      setNotifications([]);
+      setNotificationCounts({ read: 0, total: 0, unread: 0 });
+    }
+  }, [activeTab, isAuthenticated, fetchAndRefresh]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // Request permission and register token (might be redundant if AuthContext handles it well, but good for robustness)
+    const setupPermissions = async () => {
+        if (Platform.OS === 'ios') {
+            const authStatus = await messaging().requestPermission();
+            const enabled =
+              authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+              authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+            if (enabled) {
+              // console.log('Authorization status:', authStatus);
+              // Consider calling registerDeviceForNotifications here if not handled by AuthContext on app load
+            }
+        }else if (Platform.OS === 'android') {
+          PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+        }
+        // Android permission is typically handled by default or via AndroidManifest
+        // For Android 13+, messaging().requestPermission() or PermissionsAndroid is needed.
+        // Assuming AuthContext's registerDeviceForNotifications covers this.
+    };
+    setupPermissions();
+
+    // Foreground messages
+    const unsubscribeForeground = messaging().onMessage(async remoteMessage => {
+      Alert.alert(
+        remoteMessage.notification?.title || 'New Notification',
+        remoteMessage.notification?.body,
+        [{ text: 'OK' }]
+      );
+      // console.log('A new FCM message arrived in foreground!', JSON.stringify(remoteMessage));
+      // Refresh notification list and counts
+      fetchAndRefresh();
+    });
+
+    // Handle notification tap when app is in background
+    const unsubscribeOpenedApp = messaging().onNotificationOpenedApp(remoteMessage => {
+      // console.log('Notification caused app to open from background state:', remoteMessage);
+      if (remoteMessage?.data?.reservation_id) {
+        // @ts-ignore
+        navigation.navigate('Reservations', { reservation_id: remoteMessage.data.reservation_id });
+      }
+      // Potentially mark as read or refresh list
+      fetchAndRefresh();
+    });
+
+    // Handle notification tap when app is opened from quit state
+    messaging()
+      .getInitialNotification()
+      .then(remoteMessage => {
+        if (remoteMessage) {
+          // console.log('Notification caused app to open from quit state:', remoteMessage);
+          if (remoteMessage?.data?.reservation_id) {
+             // @ts-ignore
+            navigation.navigate('Reservations', { reservation_id: remoteMessage.data.reservation_id });
+          }
+          // Potentially mark as read or refresh list
+          fetchAndRefresh();
+        }
+      });
+    
+    // Token refresh listener
+    const unsubscribeTokenRefresh = messaging().onTokenRefresh(newToken => {
+        // console.log('FCM Token refreshed:', newToken);
+        // Re-register the new token with your backend
+        if (isAuthenticated) {
+            registerDeviceForNotifications(); // This function in AuthContext should handle sending the new token
+        }
+    });
+
+    return () => {
+      unsubscribeForeground();
+      unsubscribeOpenedApp();
+      unsubscribeTokenRefresh();
+    };
+  }, [isAuthenticated, navigation, fetchAndRefresh, registerDeviceForNotifications]);
+  
+  // Refresh data when the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (isAuthenticated) {
+        fetchAndRefresh();
+      }
+    }, [isAuthenticated, fetchAndRefresh])
+  );
+
+  const handleMarkAsRead = useCallback(async (notificationToMark: NotificationType, shouldNavigate = true) => {
+    if (notificationToMark.is_read && shouldNavigate && notificationToMark.notification_type === 'RESERVATION' && notificationToMark.data?.reservation_id) {
+        // @ts-ignore
+        navigation.navigate('Reservations', { reservation_id: notificationToMark.data.reservation_id });
+        return;
+    }
+    if(notificationToMark.is_read) return;
+
+    const originalNotifications = [...notifications];
+    // Optimistic update
+    setNotifications(prev => 
+      prev.map(n => 
+        n.user_notification_id === notificationToMark.user_notification_id 
+          ? { ...n, is_read: true, read_at: new Date().toISOString() } 
           : n
       )
     );
-
-    // Navigate if it's a reservation notification and navigation is allowed
-    if (shouldNavigate && notificationToMark.notification_type === 'RESERVATION' && notificationToMark.data?.reservation_id) {
-      // Assuming you have a 'Reservations' screen that can take 'reservation_id' as a param
-      // Adjust screen name and params as per your navigation setup
-      // @ts-ignore
-      navigation.navigate('Reservations', { reservation_id: notificationToMark.data.reservation_id });
+    if (activeTab === 'unread') { // If on unread tab, remove it visually
+        setNotifications(prev => prev.filter(n => n.user_notification_id !== notificationToMark.user_notification_id));
     }
-  }, [navigation]);
 
-  const handleMarkAllAsRead = () => {
-    if (unreadCount === 0) return;
-    setNotifications(prevNotifications =>
-      prevNotifications.map(n =>
-        !n.is_read ? { ...n, is_read: true, read_at: new Date().toISOString() } : n
-      )
-    );
+    try {
+      await api.post(`/api/v1/notifications/${notificationToMark.user_notification_id}/mark-read/`);
+      await fetchNotificationCounts(); // Refresh counts
+      // Optionally, refetch the current page for consistency if optimistic update is not enough
+      // await fetchNotifications(1, activeTab, true); // Or just rely on counts and optimistic update
+
+      if (shouldNavigate && notificationToMark.notification_type === 'RESERVATION' && notificationToMark.data?.reservation_id) {
+        // @ts-ignore
+        navigation.navigate('Reservations', { reservation_id: notificationToMark.data.reservation_id });
+      }
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err);
+      setNotifications(originalNotifications); // Revert optimistic update
+      await fetchNotificationCounts(); // Refresh counts anyway
+      Alert.alert("Error", "Could not mark notification as read.");
+    }
+  }, [navigation, notifications, activeTab, fetchNotificationCounts, fetchNotifications]);
+
+  const handleMarkAllAsRead = async () => {
+    if (notificationCounts.unread === 0) return;
+    setIsLoading(true);
+    try {
+      await api.post('/api/v1/notifications/mark-all-read/');
+      await fetchNotificationCounts();
+      // Refresh the current tab; if it was 'unread', it should now be empty or show newly fetched 'read' items if tab switched.
+      await fetchNotifications(1, activeTab, true); 
+    } catch (err) {
+      console.error('Failed to mark all as read:', err);
+      Alert.alert("Error", "Could not mark all notifications as read.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleClearAll = () => {
-    if (notifications.length === 0) return;
+    if (notificationCounts.total === 0) return;
     Alert.alert(
       "Clear All Notifications",
       "Are you sure you want to clear all notifications? This action cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Clear All", style: "destructive", onPress: () => setNotifications([]) }
+        { 
+          text: "Clear All", 
+          style: "destructive", 
+          onPress: async () => {
+            setIsLoading(true);
+            try {
+              await api.delete('/api/v1/notifications/clear-all/');
+              setNotifications([]);
+              await fetchNotificationCounts();
+              // Current tab will be empty after clearing all
+              await fetchNotifications(1, activeTab, true); 
+            } catch (err) {
+              console.error('Failed to clear all notifications:', err);
+              Alert.alert("Error", "Could not clear all notifications.");
+            } finally {
+              setIsLoading(false);
+            }
+          } 
+        }
       ]
     );
   };
-
-  const filteredNotifications = notifications.filter(n =>
-    activeTab === 'unread' ? !n.is_read : n.is_read
-  );
+  
+  const handleLoadMore = () => {
+    if (hasMore && !isPageLoading && !isLoading) {
+      fetchNotifications(currentPage + 1, activeTab, false);
+    }
+  };
 
   const renderItem = ({ item }: { item: NotificationType }) => (
     <NotificationItem notification={item} onPress={handleMarkAsRead} />
   );
 
+  const renderFooter = () => {
+    if (isPageLoading) {
+      return <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 20 }} />;
+    }
+    if (hasMore && !isLoading) { // Show Load More button only if not initial loading
+      return (
+        <TouchableOpacity style={styles.loadMoreButton} onPress={handleLoadMore}>
+          <Text style={styles.loadMoreButtonText}>Load More</Text>
+        </TouchableOpacity>
+      );
+    }
+    return null;
+  };
+
+  if (!isAuthenticated) {
+    return (
+        <SafeAreaView style={styles.safeArea}>
+            <View style={styles.centered}>
+                <Text style={{color: colors.text, fontSize: 16}}>Please log in to see notifications.</Text>
+                {/* Optionally, add a login button */}
+            </View>
+        </SafeAreaView>
+    );
+  }
+
+  if (isLoading && notifications.length === 0) { // Initial loading state
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={{ color: colors.text, marginTop: 10 }}>Loading notifications...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        
-
         <View style={styles.tabContainer}>
           <TouchableOpacity
             style={[styles.tabButton, activeTab === 'unread' && styles.activeTabButton]}
-            onPress={() => setActiveTab('unread')}
+            onPress={() => {
+              setActiveTab('unread');
+              // fetchNotifications(1, 'unread', true) will be called by useEffect due to activeTab change
+            }}
           >
             <Text style={[styles.tabButtonText, activeTab === 'unread' && styles.activeTabButtonText]}>
-              Unread ({unreadCount})
+              Unread ({notificationCounts.unread})
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tabButton, activeTab === 'read' && styles.activeTabButton]}
-            onPress={() => setActiveTab('read')}
+            onPress={() => {
+              setActiveTab('read');
+              // fetchNotifications(1, 'read', true) will be called by useEffect due to activeTab change
+            }}
           >
             <Text style={[styles.tabButtonText, activeTab === 'read' && styles.activeTabButtonText]}>
-              Read ({readCount})
+              Read ({notificationCounts.read})
             </Text>
           </TouchableOpacity>
         </View>
 
-        {filteredNotifications.length === 0 ? (
+        {error && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+            <Button title="Retry" onPress={() => fetchNotifications(1, activeTab, true)} color={colors.primary} />
+          </View>
+        )}
+
+        {notifications.length === 0 && !isLoading && !error ? (
           <View style={styles.emptyStateContainer}>
             <Text style={styles.emptyStateText}>
               {activeTab === 'unread' ? 'No unread notifications.' : 'No read notifications.'}
@@ -947,28 +393,33 @@ const NotificationsScreen = () => {
           </View>
         ) : (
           <FlatList
-            data={filteredNotifications}
+            data={notifications} // Use API-fetched notifications
             renderItem={renderItem}
             keyExtractor={item => item.user_notification_id.toString()}
             style={styles.list}
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={renderFooter}
+            refreshing={isLoading && notifications.length > 0} // Show refresh control if loading new set while old data is visible
+            onRefresh={() => fetchNotifications(1, activeTab, true)} // Pull to refresh
           />
         )}
 
-        {notifications.length > 0 && (
+        {notificationCounts.total > 0 && (
           <View style={styles.footerActions}>
             <TouchableOpacity
               onPress={handleMarkAllAsRead}
-              disabled={unreadCount === 0}
-              style={[styles.footerButton, unreadCount === 0 && styles.disabledButton]}
+              disabled={isLoading || notificationCounts.unread === 0}
+              style={[styles.footerButton, (isLoading || notificationCounts.unread === 0) && styles.disabledButton]}
             >
-              <Text style={styles.footerButtonText}>Mark all as read ({unreadCount})</Text>
+              <Text style={styles.footerButtonText}>Mark all as read ({notificationCounts.unread})</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleClearAll}
-              disabled={notifications.length === 0}
-              style={[styles.footerButton, styles.clearButton, notifications.length === 0 && styles.disabledButton]}
+              disabled={isLoading || notificationCounts.total === 0}
+              style={[styles.footerButton, styles.clearButton, (isLoading || notificationCounts.total === 0) && styles.disabledButton]}
             >
-              <Text style={[styles.footerButtonText, styles.clearButtonText]}>Clear all ({notifications.length})</Text>
+              <Text style={[styles.footerButtonText, styles.clearButtonText]}>Clear all ({notificationCounts.total})</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -977,7 +428,7 @@ const NotificationsScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.background,
@@ -985,22 +436,28 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.cardBackground,
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.text,
+  errorContainer: {
+    padding: 20,
+    alignItems: 'center',
+    backgroundColor: colors.danger + '20', // Light danger background
+  },
+  errorText: {
+    color: colors.danger,
+    fontSize: 16,
     textAlign: 'center',
+    marginBottom: 10,
   },
+  // ...existing header styles (if any were defined, currently not)
   tabContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    backgroundColor: colors.cardBackground,
+    backgroundColor: colors.card,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -1016,7 +473,7 @@ const styles = StyleSheet.create({
   },
   tabButtonText: {
     fontSize: 14,
-    color: colors.secondary,
+    color: colors.subtext, // Changed from secondary to subtext for potentially better contrast
   },
   activeTabButtonText: {
     color: colors.primary,
@@ -1033,13 +490,13 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     fontSize: 16,
-    color: colors.secondary,
+    color: colors.subtext, // Changed from secondary
   },
   footerActions: {
     padding: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    backgroundColor: colors.cardBackground,
+    backgroundColor: colors.card,
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
@@ -1053,17 +510,29 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 13,
     fontWeight: '600',
-    textDecorationLine: 'underline',
+    // textDecorationLine: 'underline', // Consider removing underline for cleaner look, or make conditional
   },
   clearButton: {
-    // backgroundColor: colors.error,
+    // backgroundColor: colors.danger, // If you want a background color
   },
   clearButtonText: {
-    color: colors.error,
+    color: colors.danger,
   },
   disabledButton: {
     opacity: 0.5,
   },
+  loadMoreButton: {
+    padding: 15,
+    alignItems: 'center',
+    backgroundColor: colors.card, // Or transparent
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  loadMoreButtonText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: 'bold',
+  }
 });
 
-export default NotificationsScreen;
+export default Notifications;

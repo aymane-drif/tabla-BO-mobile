@@ -10,18 +10,58 @@ import messaging from '@react-native-firebase/messaging';
 messaging().setBackgroundMessageHandler(async remoteMessage => {
   console.log('Message handled in the background!', remoteMessage);
 
-  // Here you can:
-  // - Perform background tasks (e.g., update local data, badge count).
-  // - Schedule a local notification if needed (though FCM often handles the display).
-  // - IMPORTANT: Do NOT attempt to update UI directly or navigate from here,
-  //   as the app might not be in a state to handle UI updates.
-  //   If you need to trigger UI changes upon app open, use getInitialNotification()
-  //   or onNotificationOpenedApp() listeners within your app components.
+  try {
+    const { data, notification } = remoteMessage;
 
-  // Example: If your backend sends a specific data payload indicating a new message count
-  // if (remoteMessage.data && remoteMessage.data.unreadCount) {
-  //   // Store this count or update a badge, e.g., using a library like react-native-push-notification
-  // }
+    // --- Perform background tasks here ---
+    // These tasks should be lightweight and complete quickly.
+    // Avoid long-running operations or direct UI manipulations.
+
+    // Example 1: Update application badge count based on data payload
+    if (data && data.unreadCount) {
+      const newUnreadCount = parseInt(data.unreadCount, 10);
+      if (!isNaN(newUnreadCount)) {
+        console.log(`Background: Received unread count: ${newUnreadCount}`);
+        // TODO: Implement logic to update the app\\'s badge count.
+        // This might involve a native module or a library like @notifee/react-native or react-native-push-notification.
+        // e.g., await YourBadgeUpdateModule.setBadgeCount(newUnreadCount);
+      } else {
+        console.warn('Background: Received unreadCount is not a valid number.', data.unreadCount);
+      }
+    }
+
+    // Example 2: Store data for later use when the app opens
+    if (data && data.someImportantInfo) {
+      console.log('Background: Storing important info:', data.someImportantInfo);
+      // TODO: Implement logic to store this data, e.g., using AsyncStorage.
+      // await AsyncStorage.setItem('backgroundNotificationData', JSON.stringify(data));
+    }
+
+    // Example 3: If you need to trigger a local notification from a data-only message
+    // Note: FCM often handles displaying notifications sent with a 'notification' payload automatically.
+    // This is more for data-only messages where you want to control the notification display.
+    if (data && !notification && data.showLocalNotification === 'true') {
+      console.log('Background: Data message received, scheduling local notification.');
+      // TODO: Implement logic to display a local notification.
+      // This would typically use a library like @notifee/react-native.
+      // e.g., await displayLocalNotification(data.title, data.body);
+    }
+
+    // --- End of background tasks ---
+
+    // IMPORTANT REMINDERS:
+    // 1. UI Updates: Do NOT attempt to update UI directly or navigate from this handler.
+    //    The app might not be in a state to handle UI updates.
+    // 2. App Launch: To handle UI changes or navigation when the app is opened from a
+    //    notification (either from background or killed state), use listeners like
+    //    `messaging().getInitialNotification()` and `messaging().onNotificationOpenedApp()`
+    //    within your app\\'s component lifecycle (e.g., in your main App component or a dedicated notifications manager).
+
+  } catch (error) {
+    console.error('Error processing background message:', error);
+    // It\\'s crucial to catch errors here to prevent the app from crashing
+    // or the background handler from failing silently.
+  }
 });
 
 // It's good practice to also check if the app was launched from a notification

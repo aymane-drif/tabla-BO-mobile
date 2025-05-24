@@ -1,5 +1,5 @@
 "use client"
-
+import { api } from "@/api/axiosInstance"; // Added import
 import { useEffect, useState } from "react"
 import {
   View,
@@ -76,7 +76,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
   const [searchKeyword, setSearchKeyword] = useState("")
   const [clients, setClients] = useState<Client[]>([])
   const [searchResults, setSearchResults] = useState<Client[]>([])
-  const [count, setCount] = useState(0)
+  const [count, setCount] = useState(0) // This might be set by fetchClients if API returns total count
   const [selectedOccasion, setSelectedOccasion] = useState<number | null>(null)
   const [occasions, setOccasions] = useState<Occasion[]>([
     { id: 1, name: "Birthday" },
@@ -86,8 +86,8 @@ const AddReservationModal = (props: AddReservationModalProps) => {
     { id: 5, name: "Family Gathering" },
   ])
   const [data, setData] = useState<DataTypes>({
-    reserveDate: props.timeAndDate?.date || format(new Date(), "yyyy-MM-dd"),
-    time: props.timeAndDate?.time || "19:00",
+    reserveDate: props.timeAndDate?.date || "",
+    time: props.timeAndDate?.time || "",
     guests: 2,
   })
   const [focusedClient, setFocusedClient] = useState(false)
@@ -121,53 +121,53 @@ const AddReservationModal = (props: AddReservationModalProps) => {
     title: "mr",
   })
 
-  // Mock data for clients
+  // Fetch clients from API
   useEffect(() => {
-    // Simulate API call
-    const mockClients: Client[] = [
-      {
-        id: "1",
-        full_name: "John Smith",
-        email: "john.smith@example.com",
-        phone: "+1 555-123-4567",
-        tags: [
-          { id: 1, name: "VIP" },
-          { id: 2, name: "Regular" },
-        ],
-      },
-      {
-        id: "2",
-        full_name: "Emma Johnson",
-        email: "emma.j@example.com",
-        phone: "+1 555-987-6543",
-        tags: [{ id: 3, name: "New" }],
-      },
-      {
-        id: "3",
-        full_name: "Michael Brown",
-        email: "michael.b@example.com",
-        phone: "+1 555-456-7890",
-        tags: [{ id: 4, name: "Business" }],
-      },
-    ]
+    const fetchClients = async () => {
+      setIsLoading(true); // Indicate loading state for client search
+      try {
+        const params = new URLSearchParams();
+        if (searchKeyword) {
+          params.append('search', searchKeyword);
+        }
+        // Add other params like page if pagination is needed for clients
+        // params.append('page_size', '10'); 
 
-    setClients(mockClients)
-    setSearchResults(mockClients)
-    setCount(mockClients.length)
-  }, [])
+        const response = await api.get(`/api/v1/bo/customers/?${params.toString()}`);
+        
+        // Assuming API response structure { results: Client[], count?: number }
+        const fetchedClients = response.data.results || [];
+        setClients(fetchedClients);
+        setSearchResults(fetchedClients); // Update searchResults directly
+        if (response.data.count !== undefined) {
+          setCount(response.data.count);
+        } else {
+          setCount(fetchedClients.length);
+        }
+      } catch (error) {
+        console.error("Error fetching clients:", error);
+        setClients([]);
+        setSearchResults([]);
+        setCount(0);
+        // Optionally, show an error message to the user
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  // Search filter
+    // Debounce fetching to avoid too many API calls while typing
+    const debounceFetch = setTimeout(() => {
+      fetchClients();
+    }, 500); // Adjust debounce delay as needed
+
+    return () => clearTimeout(debounceFetch);
+  }, [searchKeyword]); // Re-fetch when searchKeyword changes
+
+  // Search filter - now primarily updates searchKeyword to trigger useEffect
   const searchFilter = (text: string) => {
     const keyword = text.toLowerCase()
-    setSearchKeyword(keyword)
-
-    if (!keyword) {
-      setSearchResults(clients)
-    } else {
-      setInputName(text)
-      const results = clients.filter((client) => client.full_name.toLowerCase().includes(keyword))
-      setSearchResults(results)
-    }
+    setSearchKeyword(text) // Update searchKeyword to trigger API call via useEffect
+    setInputName(text) // Keep this if inputName is used for displaying in the input field
   }
 
   // Handle client selection
@@ -360,7 +360,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
             </TouchableOpacity>
 
             <ScrollView style={styles.clientList}>
-              {searchResults.map((client) => (
+              {(searchResults || [])?.map((client) => (
                 <TouchableOpacity
                   key={client.id}
                   style={[styles.clientItem, { backgroundColor: colors.background }]}
@@ -587,11 +587,11 @@ const AddReservationModal = (props: AddReservationModalProps) => {
           </TouchableOpacity>
         </View>
 
-        {selectedClient && (
+        {selectedClient?.tags?.length && (
           <>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Tags</Text>
             <View style={styles.tagsContainer}>
-              {selectedClient.tags.map((tag) => (
+              {(selectedClient.tags|| []).map((tag) => (
                 <View key={tag.id} style={[styles.tag, { backgroundColor: colors.success + "20" }]}>
                   <Text style={[styles.tagText, { color: colors.success }]}>{tag.name}</Text>
                 </View>

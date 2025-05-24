@@ -6,7 +6,7 @@ import { useTheme } from '../Context/ThemeContext';
 import { api } from '@/api/axiosInstance';
 import messaging from '@react-native-firebase/messaging';
 import { useAuth } from '../Context/AuthContext'; // Import useAuth
-import { ErrorBoundaryProps, useRouter } from 'expo-router';
+import { ErrorBoundaryProps, useRouter as useExpoRouter } from 'expo-router';
 import {PermissionsAndroid} from 'react-native';
 
 export type NotificationType = { // Assuming this structure based on dummy data and web app
@@ -57,9 +57,9 @@ export function ErrorBoundary(props: ErrorBoundaryProps) {
 const Notifications = () => {
   const { colors } = useTheme();
   const styles = getStyles(colors);
-  const navigation = useNavigation();
+  // const navigation = useNavigation(); // Prefer expo-router's useRouter
+  const router = useExpoRouter(); // Use expo-router's useRouter
   const { isAuthenticated, registerDeviceForNotifications } = useAuth(); // Get auth state
-  const router = useRouter();
   const [notifications, setNotifications] = useState<NotificationType[]>([]);
   const [activeTab, setActiveTab] = useState<ActiveTab>('unread');
   
@@ -172,8 +172,8 @@ const Notifications = () => {
     const unsubscribeOpenedApp = messaging().onNotificationOpenedApp(remoteMessage => {
       // console.log('Notification caused app to open from background state:', remoteMessage);
       if (remoteMessage?.data?.reservation_id) {
-        // @ts-ignore
-        navigation.navigate('Reservations', { reservation_id: remoteMessage.data.reservation_id });
+        const reservationId = remoteMessage.data.reservation_id;
+        router.push(`/?reservation_id=${reservationId}`);
       }
       // Potentially mark as read or refresh list
       fetchAndRefresh();
@@ -186,8 +186,8 @@ const Notifications = () => {
         if (remoteMessage) {
           // console.log('Notification caused app to open from quit state:', remoteMessage);
           if (remoteMessage?.data?.reservation_id) {
-             // @ts-ignore
-            navigation.navigate('Reservations', { reservation_id: remoteMessage.data.reservation_id });
+            const reservationId = remoteMessage.data.reservation_id;
+            router.push(`/?reservation_id=${reservationId}`);
           }
           // Potentially mark as read or refresh list
           fetchAndRefresh();
@@ -208,7 +208,7 @@ const Notifications = () => {
       unsubscribeOpenedApp();
       unsubscribeTokenRefresh();
     };
-  }, [isAuthenticated, navigation, fetchAndRefresh, registerDeviceForNotifications]);
+  }, [isAuthenticated, router, fetchAndRefresh, registerDeviceForNotifications]);
   
   // Refresh data when the screen comes into focus
   useFocusEffect(
@@ -220,12 +220,19 @@ const Notifications = () => {
   );
 
   const handleMarkAsRead = useCallback(async (notificationToMark: NotificationType, shouldNavigate = true) => {
-    if (notificationToMark.is_read && shouldNavigate && notificationToMark.notification_type === 'RESERVATION' && notificationToMark.data?.reservation_id) {
-        // @ts-ignore
-        navigation.navigate('Reservations', { reservation_id: notificationToMark.data.reservation_id });
+    const reservationId = notificationToMark.data?.reservation_id;
+
+    if (notificationToMark.is_read && shouldNavigate && notificationToMark.notification_type === 'RESERVATION' && reservationId) {
+        router.push({ pathname: '/', params: { reservation_id: reservationId } });
         return;
     }
-    if(notificationToMark.is_read) return;
+    if(notificationToMark.is_read && !shouldNavigate) return; // If already read and no navigation, do nothing.
+    if(notificationToMark.is_read && shouldNavigate && !(notificationToMark.notification_type === 'RESERVATION' && reservationId)) {
+        // Already read, but no valid reservation to navigate to, or not a reservation notification.
+        // Potentially do nothing or handle other notification types if they have navigation targets.
+        return;
+    }
+
 
     const originalNotifications = [...notifications];
     // Optimistic update
@@ -246,9 +253,8 @@ const Notifications = () => {
       // Optionally, refetch the current page for consistency if optimistic update is not enough
       // await fetchNotifications(1, activeTab, true); // Or just rely on counts and optimistic update
 
-      if (shouldNavigate && notificationToMark.notification_type === 'RESERVATION' && notificationToMark.data?.reservation_id) {
-        // @ts-ignore
-        navigation.navigate('Reservations', { reservation_id: notificationToMark.data.reservation_id });
+      if (shouldNavigate && notificationToMark.notification_type === 'RESERVATION' && reservationId) {
+        router.push({ pathname: '/', params: { reservation_id: reservationId } });
       }
     } catch (err) {
       console.error('Failed to mark notification as read:', err);
@@ -256,7 +262,7 @@ const Notifications = () => {
       await fetchNotificationCounts(); // Refresh counts anyway
       Alert.alert("Error", "Could not mark notification as read.");
     }
-  }, [navigation, notifications, activeTab, fetchNotificationCounts, fetchNotifications]);
+  }, [router, notifications, activeTab, fetchNotificationCounts, fetchNotifications]);
 
   const handleMarkAllAsRead = async () => {
     if (notificationCounts.unread === 0) return;

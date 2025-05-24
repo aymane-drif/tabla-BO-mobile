@@ -1,51 +1,72 @@
 "use client"
 
-import type React from "react"
-import { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import {
+  Modal,
   View,
   Text,
-  Modal,
-  StyleSheet,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
-  TextInput,
+  StyleSheet,
   Dimensions,
   Platform,
+  ActivityIndicator,
+  TextInput,
+  Alert,
 } from "react-native"
-import { format } from "date-fns"
+import { Calendar, DateData } from "react-native-calendars"
 import { Feather } from "@expo/vector-icons"
-import { useTheme } from "../../Context/ThemeContext"
-import Calendar from "../Calendar"
+import { format, parseISO, addMonths, subMonths, startOfMonth, isValid, getMonth, getYear, getDate } from "date-fns" // Added more date-fns functions
 
-// Types
-type SelectedData = {
-  reserveDate: string
-  time: string
-  guests: number
+import { useTheme } from "../../Context/ThemeContext"
+import { api } from "../../api/axiosInstance" // Assuming api is your configured axios instance
+
+const { width, height } = Dimensions.get("window")
+
+// Skeleton Loader for Time Slots
+const TimeSkeletonLoader: React.FC = () => {
+  const { colors } = useTheme();
+  const skeletonCount = 8; // Number of skeleton items to show
+  return (
+    <View style={styles.timeButtonsContainer}> 
+      {Array.from({ length: skeletonCount }).map((_, index) => (
+        <View
+          key={`skeleton-${index}`}
+          style={[
+            styles.timeButton, // Reuse timeButton style for consistent sizing
+            { 
+              backgroundColor: colors.border + '80', // Use a semi-transparent border color or a dedicated skeleton color
+              borderColor: colors.border + '40', 
+            }
+          ]}
+        />
+      ))}
+    </View>
+  );
+};
+
+// Types based on web component and potential API responses
+interface AvailableDateAPIItem {
+  day: number // Day of the month
+  isAvailable: boolean
+}
+
+interface GroupedTimeSlots {
+  [category: string]: string[]
 }
 
 interface ReservationProcessProps {
   isVisible: boolean
   onClose: () => void
-  onComplete: (data: SelectedData) => void
+  onComplete: (data: { reserveDate: string; time: string; guests: number }) => void
   maxGuests?: number
   minGuests?: number
-  initialData?: SelectedData
+  initialData?: {
+    reserveDate?: string // YYYY-MM-DD
+    time?: string
+    guests?: number
+  }
 }
-
-export type AvailableDate = {
-  day: number
-  isAvailable: boolean
-}
-
-// Group time slots by category (lunch, dinner, etc.)
-type GroupedTimeSlots = {
-  [category: string]: string[]
-}
-
-const { width, height } = Dimensions.get("window")
 
 const ReservationProcess: React.FC<ReservationProcessProps> = ({
   isVisible,
@@ -57,299 +78,409 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
 }) => {
   const { colors, isDarkMode } = useTheme()
 
-  // States
   const [activeTab, setActiveTab] = useState<"date" | "guest" | "time" | "confirm">("date")
-  const [selectedDate, setSelectedDate] = useState<Date | null>(
-    initialData?.reserveDate ? new Date(initialData.reserveDate) : null,
+  
+  // Use string for selectedDate (YYYY-MM-DD)
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [selectedGuests, setSelectedGuests] = useState<number | null>(null)
+  const [selectedTime, setSelectedTime] = useState<string | null>(null)
+  
+  const [currentCalendarMonth, setCurrentCalendarMonth] = useState<string>(
+    initialData?.reserveDate && isValid(parseISO(initialData.reserveDate))
+      ? format(parseISO(initialData.reserveDate), "yyyy-MM-dd")
+      : format(new Date(), "yyyy-MM-dd")
   )
-  const [selectedTime, setSelectedTime] = useState<string | null>(initialData?.time || null)
-  const [selectedGuests, setSelectedGuests] = useState<number | null>(initialData?.guests || null)
-  const [numberGuests, setNumberGuests] = useState<string>(initialData?.guests?.toString() || "")
-  const [selectedData, setSelectedData] = useState<SelectedData>({
-    reserveDate: initialData?.reserveDate || "",
-    time: initialData?.time || "",
-    guests: initialData?.guests || 0,
-  })
-  const [availableDates, setAvailableDates] = useState<AvailableDate[]>([])
+  
+  const [markedDates, setMarkedDates] = useState<{[date: string]: any}>({})
   const [availableTimes, setAvailableTimes] = useState<GroupedTimeSlots>({})
-  const [loadingDates, setLoadingDates] = useState<boolean>(true)
-  const [loadingTimes, setLoadingTimes] = useState<boolean>(false)
-  const [currentMonth, setCurrentMonth] = useState<string>(format(new Date(), "yyyy-MM"))
+  
+  const [loadingDates, setLoadingDates] = useState(false)
+  const [loadingTimes, setLoadingTimes] = useState(false)
+  const [manualGuestInput, setManualGuestInput] = useState<string>("")
 
-  // Reset active tab when modal opens with initial data
-//   useEffect(() => {
-//     if (isVisible) {
-//       if (initialData?.reserveDate && initialData?.time && initialData?.guests) {
-//         setActiveTab("confirm")
-//       } else if (initialData?.reserveDate && initialData?.guests) {
-//         setActiveTab("time")
-//       } else if (initialData?.reserveDate) {
-//         setActiveTab("guest")
-//       } else {
-//         setActiveTab("date")
-//       }
-//     }
-//   }, [isVisible, initialData])
-
-  // Fetch available dates for the current month
+  // Initialize state from initialData
   useEffect(() => {
     if (isVisible) {
-      fetchAvailableDates()
-    }
-  }, [currentMonth, isVisible])
+      if (initialData) {
+        if (initialData.reserveDate && isValid(parseISO(initialData.reserveDate))) {
+          const initialDateStr = format(parseISO(initialData.reserveDate), "yyyy-MM-dd");
+          setSelectedDate(initialDateStr);
+          setCurrentCalendarMonth(initialDateStr);
+        } else {
+          setSelectedDate(null);
+          setCurrentCalendarMonth(format(new Date(), "yyyy-MM-dd"));
+          setMarkedDates({}); // Clear if initial date is invalid/missing
+        }
 
-  // Fetch available times when date and guests are selected
+        if (initialData.guests) {
+          setSelectedGuests(initialData.guests);
+          setManualGuestInput(String(initialData.guests));
+        } else {
+          setSelectedGuests(null);
+          setManualGuestInput("");
+        }
+
+        if (initialData.time) {
+          setSelectedTime(initialData.time);
+        } else {
+          setSelectedTime(null);
+        }
+        
+        // Determine activeTab based on pre-filled data
+        if (initialData.reserveDate && initialData.guests && initialData.time) {
+          setActiveTab("confirm");
+        } else if (initialData.reserveDate && initialData.guests) {
+          setActiveTab("time");
+        } else if (initialData.reserveDate) {
+          setActiveTab("guest");
+        } else {
+          setActiveTab("date");
+        }
+
+        // Clear fetched data if prerequisites from initialData are missing
+        if (!initialData.reserveDate || !initialData.guests) {
+            setAvailableTimes({});
+        }
+        // If reserveDate was not provided or invalid, markedDates is already cleared above.
+        // If it was provided, fetchAvailableDates will handle it.
+
+      } else {
+        // Reset to default if no initialData
+        setSelectedDate(null);
+        setSelectedGuests(null);
+        setSelectedTime(null);
+        setActiveTab("date");
+        setCurrentCalendarMonth(format(new Date(), "yyyy-MM-dd"));
+        setMarkedDates({}); 
+        setAvailableTimes({}); 
+        setManualGuestInput("");
+      }
+    }
+    // fetchAvailableDates is handled by its own useEffect based on currentCalendarMonth and isVisible
+  }, [initialData, isVisible]); // Re-run if isVisible changes to reset/re-init
+
+  const fetchAvailableDates = useCallback(async (monthToFetch: string) => {
+    setLoadingDates(true)
+    try {
+      // API endpoint expects YYYY-MM format for the month
+      const monthYear = format(parseISO(monthToFetch), "yyyy-MM")
+      const response = await api.get<AvailableDateAPIItem[]>(
+        `/api/v1/bo/availability/work-shifts/${monthYear}/`
+      )
+      
+      const newMarkedDates: {[date: string]: any} = {};
+      const year = getYear(parseISO(monthToFetch));
+      const month = getMonth(parseISO(monthToFetch)) + 1; // date-fns month is 0-indexed
+      console.log("Fetched available dates for month:", monthYear, response.data);
+      (response.data || []).forEach(item => {
+        const dayStr = item.day < 10 ? `0${item.day}` : String(item.day);
+        const monthStr = month < 10 ? `0${month}` : String(month);
+        const dateString = `${year}-${monthStr}-${dayStr}`;
+        
+        if (item.isAvailable) {
+          newMarkedDates[dateString] = {
+            marked: false, // Keep marked false unless it's also selected
+            disabled: false,
+            disableTouchEvent: false,
+          }
+        } else {
+          newMarkedDates[dateString] = {
+            disabled: true,
+            disableTouchEvent: true,
+            // marked: false, // No dot for unavailable dates
+          }
+        }
+      })
+      setMarkedDates(newMarkedDates)
+    } catch (error) {
+      console.log("Failed to fetch available dates:", error)
+      Alert.alert("Error", "Could not load available dates.");
+      setMarkedDates({})
+    } finally {
+      setLoadingDates(false)
+    }
+  }, [])
+
   useEffect(() => {
-    if (selectedDate && selectedGuests) {
-      fetchAvailableTimes()
+    if (isVisible) { // Fetch dates only when modal becomes visible or month changes
+      fetchAvailableDates(currentCalendarMonth)
+    }
+  }, [currentCalendarMonth, fetchAvailableDates, isVisible])
+  
+  // Update markedDates when selectedDate changes
+  useEffect(() => {
+    setMarkedDates(prevMarkedDates => {
+      const newMarkedDates = { ...prevMarkedDates };
+      // Reset previous selection
+      console.log("Updating markedDates for selectedDate:", selectedDate);
+      (Object.keys(newMarkedDates) || [])?.forEach(date => {
+        if (newMarkedDates[date].selected) {
+          // Keep other properties like 'disabled', but remove 'selected' styling
+          newMarkedDates[date] = { ...newMarkedDates[date], selected: false, selectedColor: undefined, marked: prevMarkedDates[date]?.disabled ? false : true };
+        }
+      });
+      if (selectedDate && newMarkedDates[selectedDate]) {
+        newMarkedDates[selectedDate] = {
+          ...newMarkedDates[selectedDate],
+          selected: true,
+          selectedColor: colors.primary,
+          marked: true, // Ensure selected date has a dot or is marked
+        };
+      } else if (selectedDate) { // If selectedDate is not in current markedDates (e.g. different month loaded)
+         newMarkedDates[selectedDate] = {
+            selected: true,
+            selectedColor: colors.primary,
+            marked: true,
+            disabled: false, // Assume it's selectable if chosen
+         };
+      }
+      return newMarkedDates;
+    });
+  }, [selectedDate, colors.primary]);
+
+
+  const fetchAvailableTimes = useCallback(async () => {
+    if (!selectedDate || !selectedGuests) {
+      setAvailableTimes({})
+      return
+    }
+    setLoadingTimes(true)
+    try {
+      const response = await api.get<GroupedTimeSlots>(
+        "/api/v1/bo/availability/work-shifts/time-slots/",
+        {
+          params: {
+            date: selectedDate, // YYYY-MM-DD
+            number_of_guests: selectedGuests,
+          },
+        }
+      )
+      console.log("Fetched available times for date:", selectedDate, response.data)
+      setAvailableTimes(response.data || {})
+    } catch (error) {
+      console.log("Failed to fetch available times:", error)
+      Alert.alert("Error", "Could not load available times.");
+      setAvailableTimes({})
+    } finally {
+      setLoadingTimes(false)
     }
   }, [selectedDate, selectedGuests])
 
-  // Mock API calls
-  const fetchAvailableDates = () => {
-    setLoadingDates(true)
-    // Simulate API call
-    setTimeout(() => {
-      // Generate random available days
-      const mockAvailableDates: AvailableDate[] = []
-      const daysInMonth = new Date(
-        Number.parseInt(currentMonth.split("-")[0]),
-        Number.parseInt(currentMonth.split("-")[1]),
-        0,
-      ).getDate()
+  useEffect(() => {
+    if (selectedDate && selectedGuests && activeTab === 'time') {
+      // Clear previous times and show loader before fetching new times
+      setAvailableTimes({});
+      fetchAvailableTimes();
+    } else if (activeTab !== 'time' || !selectedDate || !selectedGuests) {
+      // Clear times and loading state if not on time tab or prerequisites are missing
+      setAvailableTimes({});
+      setLoadingTimes(false);
+    }
+  }, [selectedDate, selectedGuests, activeTab, fetchAvailableTimes]);
 
-      for (let i = 1; i <= daysInMonth; i++) {
-        // Make 70% of days available
-        mockAvailableDates.push({
-          day: i,
-          isAvailable: Math.random() > 0.3,
-        })
-      }
-
-      setAvailableDates(mockAvailableDates)
-      setLoadingDates(false)
-    }, 1000)
-  }
-
-  const fetchAvailableTimes = () => {
-    if (!selectedDate || !selectedGuests) return
-
-    setLoadingTimes(true)
-    setAvailableTimes({})
-
-    // Simulate API call
-    setTimeout(() => {
-      // Generate mock time slots grouped by category
-      const mockTimeSlots: GroupedTimeSlots = {
-        Lunch: ["11:30", "12:00", "12:30", "13:00", "13:30", "14:00"],
-        "Early Dinner": ["17:00", "17:30", "18:00"],
-        "Prime Time": ["18:30", "19:00", "19:30", "20:00"],
-        "Late Dinner": ["20:30", "21:00", "21:30", "22:00"],
-      }
-
-      // Randomly remove some time slots to simulate availability
-      Object.keys(mockTimeSlots).forEach((category) => {
-        mockTimeSlots[category] = mockTimeSlots[category].filter(() => Math.random() > 0.3)
-
-        // If all slots are removed, delete the category
-        if (mockTimeSlots[category].length === 0) {
-          delete mockTimeSlots[category]
-        }
-      })
-
-      setAvailableTimes(mockTimeSlots)
-      setLoadingTimes(false)
-    }, 1500)
-  }
-
-  // Handlers
-  const handleDateClick = (day: Date) => {
-    setSelectedDate(day)
-    const formattedDate = format(day, "yyyy-MM-dd")
-    setSelectedData((prev) => ({ ...prev, time: "", reserveDate: formattedDate }))
-    setSelectedTime(null)
-    setSelectedGuests(null)
-    setNumberGuests("")
+  const handleDayPress = (day: DateData) => {
+    if (loadingDates) { // Prevent action if dates are currently loading
+      return;
+    }
+    // Check if the date is not disabled in markedDates
+    if (markedDates[day.dateString] && markedDates[day.dateString].disabled) {
+      return; // Do nothing if the date is disabled
+    }
+    setSelectedDate(day.dateString)
+    setSelectedTime(null) // Reset time when date changes
     setAvailableTimes({})
     setActiveTab("guest")
   }
 
-  const handleGuestClick = (guest: number) => {
-    if (loadingTimes) return
-
-    setAvailableTimes({})
-    setSelectedGuests(guest)
-    setNumberGuests(guest.toString())
-    setSelectedData((prevData) => ({ ...prevData, guests: guest }))
-    setSelectedTime(null)
-    setActiveTab("time")
+  const handleGuestSelection = (guests: number) => {
+    setSelectedGuests(guests)
+    setManualGuestInput(String(guests))
+    setSelectedTime(null) // Reset time
+    setAvailableTimes({}) // Clear available times as they depend on guest count
+    if (selectedDate) {
+      setActiveTab("time")
+    } else {
+      setActiveTab("date"); // Should not happen if flow is correct
+    }
   }
 
   const handleManualGuestConfirm = () => {
-    const guests = Number.parseInt(numberGuests)
-    if (isNaN(guests) || guests < minGuests) return
-    handleGuestClick(guests)
-  }
+    const numGuests = parseInt(manualGuestInput, 10);
+    if (!isNaN(numGuests) && numGuests >= minGuests && numGuests <= maxGuests) {
+      handleGuestSelection(numGuests);
+    } else {
+      Alert.alert("Invalid Input", `Please enter a number between ${minGuests} and ${maxGuests}.`);
+    }
+  };
 
-  const handleTimeClick = (time: string) => {
+  const handleTimeSelection = (time: string) => {
     setSelectedTime(time)
-    setSelectedData((prevData) => ({ ...prevData, time }))
     setActiveTab("confirm")
   }
 
-  const handleConfirmClick = () => {
-    onComplete(selectedData)
-    onClose()
+  const handleConfirmReservation = () => {
+    if (selectedDate && selectedTime && selectedGuests) {
+      onComplete({
+        reserveDate: selectedDate,
+        time: selectedTime,
+        guests: selectedGuests,
+      })
+    } else {
+      Alert.alert("Incomplete Information", "Please select date, guests, and time.");
+    }
   }
 
-  const handleMonthChange = (newMonth: string) => {
-    setCurrentMonth(newMonth)
-    setAvailableDates([])
+  const calendarTheme = {
+    backgroundColor: colors.card,
+    calendarBackground: colors.card,
+    textSectionTitleColor: colors.subtext,
+    selectedDayBackgroundColor: colors.primary,
+    selectedDayTextColor: isDarkMode ? colors.text : "#ffffff",
+    todayTextColor: colors.primary,
+    dayTextColor: colors.text,
+    textDisabledColor: colors.text + '4D', // Adjusted: Use main text color with 30% opacity
+    dotColor: colors.primary,
+    selectedDotColor: isDarkMode ? colors.text : "#ffffff",
+    arrowColor: colors.primary,
+    disabledArrowColor: colors.subtext + "80", // This is for month arrows, might need similar review if colors.subtext has alpha
+    monthTextColor: colors.text,
+    indicatorColor: colors.primary,
+    textDayFontWeight: '400' as const, // Use 'as const' for literal type
+    textMonthFontWeight: 'bold' as const, // Use 'as const'
+    textDayHeaderFontWeight: '300' as const, // Use 'as const'
+    textDayFontSize: 15,
+    textMonthFontSize: 18,
+    textDayHeaderFontSize: 13,
+    agendaDayTextColor: colors.primary,
+    agendaDayNumColor: colors.primary,
+    agendaTodayColor: colors.primary,
+    agendaKnobColor: colors.primary,
   }
 
-  // Render tab content
   const renderDateTab = () => (
     <View style={styles.tabContent}>
-      <Text style={[styles.tabTitle, { color: colors.text }]}>
-        {selectedDate ? (
-          <>
-            {format(selectedDate, "dd MMMM yyyy")} <Text style={styles.tabSubtitle}>has been selected</Text>
-          </>
-        ) : (
-          <Text style={styles.tabSubtitle}>Select a date</Text>
-        )}
-      </Text>
+      {/* {loadingDates && <ActivityIndicator size="large" color={colors.primary} style={{marginVertical: 20}}/>} */}
       <Calendar
-        forbidden={true}
-        value={selectedDate}
-        onClick={handleDateClick}
-        availableDays={availableDates}
-        loading={loadingDates}
-        onMonthChange={(month: string) => handleMonthChange(month)}
-      />
+          current={currentCalendarMonth}
+          onDayPress={handleDayPress}
+          displayLoadingIndicator={loadingDates}
+          markedDates={{
+            ...markedDates,
+            ...(selectedDate && {
+              [selectedDate]: {
+                ...(markedDates[selectedDate] || {}), // Preserve other properties like 'disabled'
+                selected: true,
+                selectedColor: colors.primary,
+                marked: true, // Ensure selected date has a dot
+                dotColor: markedDates[selectedDate]?.disabled ? undefined : (isDarkMode ? colors.text : "#ffffff"), // Dot color for selected
+              },
+            }),
+          }}
+          onMonthChange={(date) => {
+            setCurrentCalendarMonth(date.dateString); // This will trigger fetchAvailableDates via useEffect
+          }}
+          monthFormat={"MMMM yyyy"}
+          theme={calendarTheme}
+          minDate={format(new Date(), "yyyy-MM-dd")} // Optional: prevent past dates
+          // firstDay={1} // Monday as first day of week
+          hideExtraDays={true}
+          style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 8 }}
+        />
     </View>
   )
 
-  const renderGuestTab = () => (
-    <View style={styles.tabContent}>
-      <Text style={[styles.tabTitle, { color: colors.text }]}>
-        {selectedGuests ? (
-          <>
-            {selectedGuests} <Text style={styles.tabSubtitle}>guests have been selected</Text>
-          </>
-        ) : (
-          <Text style={styles.tabSubtitle}>Choose number of guests</Text>
-        )}
-      </Text>
-      <ScrollView contentContainerStyle={styles.guestButtonsContainer}>
-        {Array.from({ length: maxGuests }, (_, index) => (
+  const renderGuestTab = () => {
+    const guestOptions = [1, 2, 3, 4, 5, 6].filter(g => g >= minGuests && g <= maxGuests);
+    // Add more if maxGuests is higher, or rely on manual input
+    if (maxGuests > 6 && !guestOptions.includes(maxGuests)) {
+        // A simple way to add a few more common options up to maxGuests or a limit
+        for (let i = 7; i <= Math.min(maxGuests, 10); i++) {
+            if (!guestOptions.includes(i)) guestOptions.push(i);
+        }
+    }
+
+
+    return (
+      <View style={styles.tabContent}>
+        <View style={styles.guestButtonsContainer}>
+          {guestOptions.map((num) => (
+            <TouchableOpacity
+              key={num}
+              style={[
+                styles.guestButton,
+                { 
+                  backgroundColor: selectedGuests === num ? colors.primary : colors.card,
+                  borderColor: selectedGuests === num ? colors.primary : colors.border,
+                },
+              ]}
+              onPress={() => handleGuestSelection(num)}
+            >
+              <Text style={[styles.guestButtonText, { color: selectedGuests === num ? (isDarkMode ? colors.text : "#FFF") : colors.text }]}>
+                {num}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <Text style={[styles.orText, { color: colors.subtext }]}>Or enter manually</Text>
+        <View style={styles.manualGuestContainer}>
+          <TextInput
+            style={[styles.guestInput, { color: colors.text, borderColor: colors.border, backgroundColor: isDarkMode ? colors.background : '#fff' }]
+          }
+            keyboardType="number-pad"
+            value={manualGuestInput}
+            onChangeText={setManualGuestInput}
+            placeholder={`e.g. ${minGuests}-${maxGuests}`}
+            placeholderTextColor={colors.subtext}
+            maxLength={2}
+          />
           <TouchableOpacity
-            key={index}
-            style={[
-              styles.guestButton,
-              selectedGuests === index + 1 && { backgroundColor: colors.primary },
-              { borderColor: colors.primary },
-            ]}
-            onPress={() => handleGuestClick(index + 1)}
+            style={[styles.confirmGuestButton, { backgroundColor: colors.primary }]
+          }
+            onPress={handleManualGuestConfirm}
           >
-            <Text style={[styles.guestButtonText, { color: selectedGuests === index + 1 ? "white" : colors.text }]}>
-              {index + 1}
-            </Text>
+            <Text style={[styles.confirmGuestButtonText, {color: isDarkMode ? colors.text : "#FFF"}]}>Set</Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
-      <Text style={[styles.orText, { color: colors.text }]}>Or enter number of guests</Text>
-      <View style={styles.manualGuestContainer}>
-        <TextInput
-          style={[styles.guestInput, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
-          value={numberGuests}
-          onChangeText={setNumberGuests}
-          keyboardType="number-pad"
-          placeholder="Enter number of guests"
-          placeholderTextColor={colors.subtext}
-        />
-        <TouchableOpacity
-          style={[
-            styles.confirmGuestButton,
-            { backgroundColor: colors.primary },
-            (!numberGuests || Number.parseInt(numberGuests) < minGuests || loadingTimes) && { opacity: 0.5 },
-          ]}
-          onPress={handleManualGuestConfirm}
-          disabled={!numberGuests || Number.parseInt(numberGuests) < minGuests || loadingTimes}
-        >
-          {loadingTimes ? (
-            <ActivityIndicator color="white" size="small" />
-          ) : (
-            <Text style={styles.confirmGuestButtonText}>Confirm</Text>
-          )}
-        </TouchableOpacity>
+        </View>
       </View>
-    </View>
-  )
+    )
+  }
 
   const renderTimeTab = () => (
     <View style={styles.tabContent}>
-      <Text style={[styles.tabTitle, { color: colors.text }]}>
-        {selectedTime ? (
-          <>
-            {selectedTime} <Text style={styles.tabSubtitle}>has been selected</Text>
-          </>
-        ) : (
-          <Text style={styles.tabSubtitle}>Available Times</Text>
-        )}
-      </Text>
-      {loadingTimes ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.text }]}>Loading available times...</Text>
-        </View>
-      ) : Object.keys(availableTimes).length === 0 ? (
+      {loadingTimes && <TimeSkeletonLoader />} 
+      {!loadingTimes && Object.keys(availableTimes).length === 0 && (
         <View style={styles.emptyStateContainer}>
-          <Feather name="alert-circle" size={48} color={colors.subtext} />
+          <Feather name="clock" size={48} color={colors.subtext} />
           <Text style={[styles.emptyStateText, { color: colors.subtext }]}>
-            No available time slots for this date {selectedDate ? format(selectedDate, "dd MMMM yyyy") : ""} and number
-            of guests {selectedGuests || ""}
+            No time slots available for the selected date and guest count. Please try different options.
           </Text>
         </View>
-      ) : (
+      )}
+      {!loadingTimes && Object.keys(availableTimes).length > 0 && (
         <ScrollView style={styles.timeSlotScrollView}>
           {Object.entries(availableTimes).map(([category, times]) => (
             <View key={category} style={styles.timeCategory}>
-              <Text style={[styles.categoryTitle, { color: colors.primary, borderBottomColor: colors.primary }]}>
-                {category}
+              <Text style={[styles.categoryTitle, { color: colors.text, borderBottomColor: colors.border }]}>
+                {category.charAt(0).toUpperCase() + category.slice(1)} {/* Capitalize category */}
               </Text>
               <View style={styles.timeButtonsContainer}>
-                {times.map((time, index) => {
-                  const now = new Date()
-                  const isToday = selectedDate && format(selectedDate, "yyyy-MM-dd") === format(now, "yyyy-MM-dd")
-                  const [hour, minute] = time.split(":").map(Number)
-                  const isPastTime =
-                    isToday && (hour < now.getHours() || (hour === now.getHours() && minute < now.getMinutes()))
-
-                  return (
-                    <TouchableOpacity
-                      key={index}
-                      style={[
-                        styles.timeButton,
-                        selectedTime === time && { backgroundColor: colors.primary },
-                        isPastTime && { backgroundColor: colors.card, opacity: 0.5 },
-                        { borderColor: colors.primary },
-                      ]}
-                      onPress={() => !isPastTime && handleTimeClick(time)}
-                      disabled={!!isPastTime}
-                    >
-                      <Text
-                        style={[
-                          styles.timeButtonText,
-                          { color: selectedTime === time ? "white" : colors.text },
-                          isPastTime && { color: colors.subtext },
-                        ]}
-                      >
-                        {time}
-                      </Text>
-                    </TouchableOpacity>
-                  )
-                })}
+                {times.map((time) => (
+                  <TouchableOpacity
+                    key={time}
+                    style={[
+                      styles.timeButton,
+                      {
+                        backgroundColor: selectedTime === time ? colors.primary : colors.card,
+                        borderColor: selectedTime === time ? colors.primary : colors.border,
+                      },
+                    ]}
+                    onPress={() => handleTimeSelection(time)}
+                  >
+                    <Text style={[styles.timeButtonText, { color: selectedTime === time ? (isDarkMode ? colors.text : "#FFF") : colors.text }]}>
+                      {time}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
           ))}
@@ -361,27 +492,56 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
   const renderConfirmTab = () => (
     <View style={styles.tabContent}>
       <Text style={[styles.confirmTitle, { color: colors.text }]}>
-        <Text style={styles.confirmSubtitle}>Your reservation is set for</Text>{" "}
-        {selectedDate && format(selectedDate, "dd MMMM yyyy")} <Text style={styles.confirmSubtitle}>at</Text>{" "}
-        {selectedTime} <Text style={styles.confirmSubtitle}>for</Text> {selectedGuests}{" "}
-        <Text style={styles.confirmSubtitle}>guests</Text>
+        Confirm Reservation
       </Text>
-      <View style={styles.confirmButtonContainer}>
-        <TouchableOpacity
-          style={[styles.confirmButton, { backgroundColor: colors.primary }]}
-          onPress={handleConfirmClick}
-        >
-          <Text style={styles.confirmButtonText}>Confirm</Text>
-        </TouchableOpacity>
-      </View>
+      {selectedDate && selectedGuests && selectedTime ? (
+        <>
+          <Text style={[styles.confirmDetail, { color: colors.subtext }]}>
+            Date: <Text style={{ fontWeight: "bold", color: colors.text }}>{format(parseISO(selectedDate), "EEEE, MMMM dd, yyyy")}</Text>
+          </Text>
+          <Text style={[styles.confirmDetail, { color: colors.subtext }]}>
+            Guests: <Text style={{ fontWeight: "bold", color: colors.text }}>{selectedGuests}</Text>
+          </Text>
+          <Text style={[styles.confirmDetail, { color: colors.subtext }]}>
+            Time: <Text style={{ fontWeight: "bold", color: colors.text }}>{selectedTime}</Text>
+          </Text>
+          <View style={styles.confirmButtonContainer}>
+            <TouchableOpacity
+              style={[styles.confirmButton, { backgroundColor: colors.primary }]}
+              onPress={handleConfirmReservation}
+            >
+              <Text style={[styles.confirmButtonText, {color: isDarkMode ? colors.text : "#FFF"}]}>Confirm & Book</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      ) : (
+        <Text style={[styles.emptyStateText, { color: colors.subtext }]}>
+          Please complete all previous steps.
+        </Text>
+      )}
     </View>
   )
+  
+  // Header for the modal
+  const renderModalHeader = () => (
+    <View style={[styles.header, { borderBottomColor: colors.border }]}>
+      <Text style={[styles.headerTitle, { color: colors.text }]}>
+        {activeTab === 'date' && 'Choose Date'}
+        {activeTab === 'guest' && 'Select Guests'}
+        {activeTab === 'time' && 'Pick a Time'}
+        {activeTab === 'confirm' && 'Confirm Booking'}
+      </Text>
+      <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+        <Feather name="x" size={24} color={colors.text} />
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
-    <Modal 
-      visible={isVisible} 
-      transparent={true} 
-      animationType="slide" 
+    <Modal
+      visible={isVisible}
+      transparent={true}
+      animationType="slide"
       onRequestClose={onClose}
       statusBarTranslucent={true}
       hardwareAccelerated={true}
@@ -399,16 +559,10 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
             },
           ]}
         >
-          {/* Header with close button */}
-          <View style={styles.header}>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>Make a Reservation</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Feather name="x" size={24} color={colors.text} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Tab navigation */}
+          {renderModalHeader()}
+          {/* Tabs */}
           <View style={styles.tabsContainer}>
+            {/* Date Tab */}
             <TouchableOpacity
               style={[styles.tab, activeTab === "date" && styles.activeTab, { borderBottomColor: colors.primary }]}
               onPress={() => setActiveTab("date")}
@@ -417,6 +571,8 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
                 Date
               </Text>
             </TouchableOpacity>
+
+            {/* Guest Tab */}
             <TouchableOpacity
               style={[
                 styles.tab,
@@ -427,21 +583,12 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
               onPress={() => selectedDate && setActiveTab("guest")}
               disabled={!selectedDate}
             >
-              <Text
-                style={[
-                  styles.tabText,
-                  {
-                    color: !selectedDate
-                      ? colors.subtext + "80"
-                      : activeTab === "guest"
-                        ? colors.primary
-                        : colors.subtext,
-                  },
-                ]}
-              >
+              <Text style={[styles.tabText, { color: !selectedDate ? colors.subtext + "80" : activeTab === "guest" ? colors.primary : colors.subtext }]}>
                 Guest
               </Text>
             </TouchableOpacity>
+
+            {/* Time Tab */}
             <TouchableOpacity
               style={[
                 styles.tab,
@@ -452,21 +599,12 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
               onPress={() => selectedDate && selectedGuests && setActiveTab("time")}
               disabled={!(selectedDate && selectedGuests)}
             >
-              <Text
-                style={[
-                  styles.tabText,
-                  {
-                    color: !(selectedDate && selectedGuests)
-                      ? colors.subtext + "80"
-                      : activeTab === "time"
-                        ? colors.primary
-                        : colors.subtext,
-                  },
-                ]}
-              >
+              <Text style={[styles.tabText, { color: !(selectedDate && selectedGuests) ? colors.subtext + "80" : activeTab === "time" ? colors.primary : colors.subtext }]}>
                 Time
               </Text>
             </TouchableOpacity>
+            
+            {/* Confirm Tab */}
             <TouchableOpacity
               style={[
                 styles.tab,
@@ -477,18 +615,7 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
               onPress={() => selectedDate && selectedGuests && selectedTime && setActiveTab("confirm")}
               disabled={!(selectedDate && selectedGuests && selectedTime)}
             >
-              <Text
-                style={[
-                  styles.tabText,
-                  {
-                    color: !(selectedDate && selectedGuests && selectedTime)
-                      ? colors.subtext + "80"
-                      : activeTab === "confirm"
-                        ? colors.primary
-                        : colors.subtext,
-                  },
-                ]}
-              >
+              <Text style={[styles.tabText, { color: !(selectedDate && selectedGuests && selectedTime) ? colors.subtext + "80" : activeTab === "confirm" ? colors.primary : colors.subtext }]}>
                 Confirm
               </Text>
             </TouchableOpacity>
@@ -510,95 +637,104 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    justifyContent: "flex-end", // Slide from bottom
+    alignItems: "center", // Centered modal horizontally
   },
   modalContainer: {
-    width: width * 0.9,
-    maxHeight: height * 0.9,
-    borderRadius: 16,
+    width: width, // Full width for bottom sheet style
+    flex: 1, // Added: Allow modalContainer to grow and establish height for ScrollView
+    maxHeight: height * 0.85, // Max 85% of screen height
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     overflow: "hidden",
     elevation: 5,
+    // backgroundColor: defined by theme
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(0, 0, 0, 0.1)",
+    // borderBottomColor: defined by theme
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
   },
   closeButton: {
-    padding: 4,
+    padding: 8, // Increase touch area
   },
   tabsContainer: {
     flexDirection: "row",
     justifyContent: "space-around",
-    paddingVertical: 12,
+    paddingVertical: 8, // Reduced padding
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    // borderBottomColor: defined by theme in modalContainer or header
   },
   tab: {
-    paddingVertical: 8,
+    paddingVertical: 10, // Increased touch area
     paddingHorizontal: 12,
+    alignItems: 'center',
+    flex: 1, // Distribute space
   },
   activeTab: {
     borderBottomWidth: 2,
+    // borderBottomColor: defined by theme (colors.primary)
   },
   disabledTab: {
     opacity: 0.5,
   },
   tabText: {
-    fontSize: 16,
+    fontSize: 15, // Slightly smaller
     fontWeight: "500",
+    textAlign: 'center',
   },
   contentContainer: {
-    flex: 1,
+    flex: 1, // Ensure content can scroll if it overflows
   },
   tabContent: {
     padding: 16,
   },
   tabTitle: {
-    fontSize: 18,
+    fontSize: 20, // Larger title for sections
     fontWeight: "bold",
     marginBottom: 16,
+    textAlign: 'center',
   },
-  tabSubtitle: {
-    fontWeight: "normal",
-  },
+  // Guest Tab Styles
   guestButtonsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "center",
-    paddingVertical: 16,
+    marginBottom: 16,
   },
   guestButton: {
-    width: 65,
-    height: 65,
+    width: width * 0.2, // Responsive width
+    height: width * 0.2, // Responsive height
+    maxWidth: 70, // Max size
+    maxHeight: 70,
     borderRadius: 8,
     borderWidth: 1,
     justifyContent: "center",
     alignItems: "center",
-    margin: 5,
+    margin: 8,
   },
   guestButtonText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "600",
   },
   orText: {
     textAlign: "center",
-    marginVertical: 16,
+    marginVertical: 12,
+    fontSize: 14,
   },
   manualGuestContainer: {
     flexDirection: "row",
+    alignItems: "center",
     marginBottom: 16,
+    paddingHorizontal: 16, // Add some padding
   },
   guestInput: {
     flex: 1,
@@ -606,91 +742,105 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 12,
-    marginRight: 8,
+    marginRight: 10,
+    fontSize: 16,
   },
   confirmGuestButton: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     height: 50,
     borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
   },
   confirmGuestButtonText: {
-    color: "white",
+    // color: "white", // Handled by theme
     fontWeight: "600",
+    fontSize: 16,
   },
-  loadingContainer: {
-    padding: 32,
+  // Time Tab Styles
+  loadingContainer: { // Generic loading container
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
+    padding: 32,
   },
   emptyStateContainer: {
-    padding: 32,
-    alignItems: "center",
-    justifyContent: "center",
+    flex: 1, // Allow it to grow if tabContent has fixed height or also flex
+    alignItems: 'center', // Keep content centered horizontally
+    justifyContent: 'center', // Added to center content vertically
+    padding: 20,
+    minHeight: 120, // Added to reduce layout shift, adjust as needed
   },
   emptyStateText: {
-    marginTop: 16,
-    fontSize: 16,
+    marginTop: 12, // Reduced margin
+    fontSize: 15,
     textAlign: "center",
+    lineHeight: 22,
   },
   timeSlotScrollView: {
-    maxHeight: 400,
+    maxHeight: height * 0.4, // Limit height of time slots
+    flex: 1, // If the content area should expand
   },
   timeCategory: {
     marginBottom: 16,
   },
   categoryTitle: {
-    fontSize: 16,
+    fontSize: 17, // Slightly larger category title
     fontWeight: "600",
-    marginBottom: 8,
-    paddingBottom: 4,
+    marginBottom: 10,
+    paddingBottom: 6,
     borderBottomWidth: 1,
   },
   timeButtonsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
+    justifyContent: "center", // Added to center time slot buttons
+    paddingVertical: 10, // Assuming some padding might exist or be beneficial
   },
   timeButton: {
-    width: 65,
-    height: 65,
+    // width: width * 0.25, // Adjust width for 3-4 per row
+    minWidth: 75, // Min width for readability
+    height: 60, // Slightly shorter
     borderRadius: 8,
     borderWidth: 1,
     justifyContent: "center",
     alignItems: "center",
-    margin: 5,
+    margin: 6, // Adjust margin
+    paddingHorizontal: 5, // Padding for text inside
   },
   timeButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
   },
+  // Confirm Tab Styles
   confirmTitle: {
-    fontSize: 18,
-    lineHeight: 28,
+    fontSize: 22,
+    fontWeight: "bold",
     textAlign: "center",
     marginBottom: 24,
   },
-  confirmSubtitle: {
-    fontWeight: "normal",
+  confirmDetail: {
+    fontSize: 16,
+    marginBottom: 12,
+    lineHeight: 24,
   },
   confirmButtonContainer: {
     alignItems: "center",
+    marginTop: 24, // Add margin top
     paddingVertical: 16,
   },
   confirmButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 32,
+    paddingVertical: 14, // Larger button
+    paddingHorizontal: 40,
     borderRadius: 8,
+    minWidth: width * 0.6, // Responsive width
+    alignItems: 'center',
   },
   confirmButtonText: {
-    color: "white",
-    fontSize: 16,
+    // color: "white", // Handled by theme
+    fontSize: 17,
     fontWeight: "600",
   },
-})
+});
 
-export default ReservationProcess
+export default ReservationProcess;

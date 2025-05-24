@@ -15,6 +15,9 @@ import {
 } from "react-native"
 import { Feather } from "@expo/vector-icons"
 import { useTheme } from "../../Context/ThemeContext"
+import { api } from "../../api/axiosInstance"
+import { ReservationSource, ReservationStatus } from "../../types/Reservation"
+import { Occasion } from "../../types/Reservation"
 
 // Import the ReservationProcess component
 import ReservationProcess from "./ReservationProcess"
@@ -71,14 +74,16 @@ interface EditReservationModalProps {
   isDarkMode: boolean
 }
 
-interface Occasion {
+// Status types
+
+
+// Assuming TableType is defined somewhere, or define it here based on web component
+interface TableType {
   id: number
   name: string
+  floor_name?: string
+  // Add other properties if needed
 }
-
-// Status types
-type ReservationStatus = "PENDING" | "APPROVED" | "SEATED" | "FULFILLED" | "NO_SHOW" | "CANCELED"
-type ReservationSource = "MARKETPLACE" | "WIDGET" | "WEBSITE" | "BACK_OFFICE" | "WALK_IN"
 
 const EditReservationModal = ({
   isVisible,
@@ -94,7 +99,7 @@ const EditReservationModal = ({
   // States
   const [selectedClient, setSelectedClient] = useState<Reservation | null>(null)
   const [selectedOccasion, setSelectedOccasion] = useState<number | null>(null)
-  const [availableTables, setAvailableTables] = useState<ReceivedTables[]>([])
+  const [availableTables, setAvailableTables] = useState<TableType[]>([])
   const [selectedTables, setSelectedTables] = useState<number[]>([])
   const [hasTable, setHasTable] = useState<boolean>(false)
   const [showConfirmPopup, setShowConfirmPopup] = useState<boolean>(false)
@@ -103,13 +108,9 @@ const EditReservationModal = ({
   const [showOccasionSelection, setShowOccasionSelection] = useState<boolean>(false)
   const [showSourceSelection, setShowSourceSelection] = useState<boolean>(false)
   const [showStatusSelection, setShowStatusSelection] = useState<boolean>(false)
-  const [occasions, setOccasions] = useState<Occasion[]>([
-    { id: 1, name: "Birthday" },
-    { id: 2, name: "Anniversary" },
-    { id: 3, name: "Business Meeting" },
-    { id: 4, name: "Date Night" },
-    { id: 5, name: "Family Gathering" },
-  ])
+  const [occasions, setOccasions] = useState<Occasion[]>([])
+  const [loadingTables, setLoadingTables] = useState(false)
+  const [loadingOccasions, setLoadingOccasions] = useState(false)
 
   // Replace the showDateTimePicker state with showReservationProcess
   const [showReservationProcess, setShowReservationProcess] = useState<boolean>(false)
@@ -152,6 +153,54 @@ const EditReservationModal = ({
       setAvailableTables(combinedTables)
     }
   }, [isVisible, reservation])
+
+  // Fetch Occasions
+  useEffect(() => {
+    if (isVisible) {
+      const fetchOccasions = async () => {
+        setLoadingOccasions(true)
+        try {
+          const response = await api.get<{ results: Occasion[] }>("/api/v1/bo/occasions/")
+          setOccasions(response.data.results || [])
+        } catch (error) {
+          console.error("Failed to fetch occasions:", error)
+        } finally {
+          setLoadingOccasions(false)
+        }
+      }
+      fetchOccasions()
+    }
+  }, [isVisible])
+
+  // Fetch Available Tables
+  useEffect(() => {
+    if (
+      isVisible &&
+      reservation &&
+      reservationProgressData.reserveDate &&
+      reservationProgressData.time &&
+      reservationProgressData.guests > 0
+    ) {
+      const fetchTables = async () => {
+        setLoadingTables(true)
+        try {
+          const params = {
+            date: reservationProgressData.reserveDate,
+            number_of_guests: reservationProgressData.guests,
+            time: `${reservationProgressData.time}:00`, // Assuming API expects seconds
+          }
+          const response = await api.get<TableType[]>("/api/v1/bo/tables/available_tables/", { params })
+          let currentTables: TableType[] = []
+          setAvailableTables([...(response.data || []), ...currentTables].filter((v, i, a) => a.findIndex((t) => t.id === v.id) === i)) // Remove duplicates
+        } catch (error) {
+          console.error("Failed to fetch available tables:", error)
+        } finally {
+          setLoadingTables(false)
+        }
+      }
+      fetchTables()
+    }
+  }, [isVisible, reservation, reservationProgressData])
 
   // Handle save
   const handleSave = () => {

@@ -14,13 +14,19 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "googleServicesFile": "./GoogleService-Info.plist"
+    },
+    "notification": {
+      "icon": "./assets/images/android/res/mipmap-hdpi/ic_launcher_monochrome.png",
+      "color": "#FFFFFF",
+      "iosDisplayInForeground": true
     },
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "com.tabla.tablabomobile",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true

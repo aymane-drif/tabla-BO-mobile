@@ -106,8 +106,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (fcmToken) {
         // console.log("FCM Token:", fcmToken);
         // Send this token to your backend
+        console.log("FCM token registered successfully:", { token: fcmToken, device_type: Platform.OS?.toUpperCase() || 'WEB'});
         const res = await api.post('/api/v1/device-tokens/', { token: fcmToken, device_type: Platform.OS?.toUpperCase() || 'WEB'})//:  }); // Example endpoint
-        console.log("FCM token registered successfully:", res.data);
         // console.log('FCM token sent to server successfully.');
       } else {
         console.log("Failed to get FCM token");

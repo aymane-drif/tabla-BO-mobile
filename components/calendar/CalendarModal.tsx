@@ -1,19 +1,22 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect, useMemo } from "react" // Added useMemo
 import { View, Text, Modal, StyleSheet, TouchableOpacity, Dimensions } from "react-native"
 import { useTheme } from "../../Context/ThemeContext"
-import Calendar from "../Calendar"
-import { format, startOfToday } from "date-fns"
+// import Calendar from "../Calendar" // Removed custom calendar
+import { Calendar as ReactNativeCalendar, DateData } from "react-native-calendars" // Added react-native-calendars
+import { format, startOfToday, parseISO, getMonth, getYear, getDate, isSameDay } from "date-fns" // Added parseISO, getMonth, getYear, getDate
 import { Feather } from "@expo/vector-icons"
 
 interface CalendarModalProps {
   isVisible: boolean
   onClose: () => void
-  onSelectDate?: (date: Date) => void
+  onSelectDate?: (date: string) => void // Changed to string
   initialDate?: Date
+  availableDays?: { day: number; isAvailable: boolean }[] // Keep this prop as is for now
+  loading?: boolean // Prop to indicate if availableDays are loading
+  forbidden?: boolean // Prop to disable past dates
 }
 
 const { height } = Dimensions.get("window")
@@ -23,41 +26,126 @@ const CalendarModal: React.FC<CalendarModalProps> = ({
   onClose,
   onSelectDate,
   initialDate = startOfToday(),
+  availableDays = [],
+  loading = false,
+  forbidden = false,
 }) => {
-  const { colors } = useTheme()
-  const [selectedDate, setSelectedDate] = useState<Date>(initialDate)
-  const [isLoading, setIsLoading] = useState(false)
+  const { colors, isDarkMode } = useTheme()
+  
+  const [selectedDateString, setSelectedDateString] = useState<string>(format(initialDate, "yyyy-MM-dd"))
+  const [currentDisplayMonth, setCurrentDisplayMonth] = useState<string>(format(initialDate, "yyyy-MM-dd"))
+  // isLoading state is now controlled by the 'loading' prop for external data fetching simulation
+  // const [isLoading, setIsLoading] = useState(false) // Use prop 'loading' instead
 
-  // Mock available days - in a real app, this would come from an API
-  const [availableDays, setAvailableDays] = useState<{ day: number; isAvailable: boolean }[]>([])
-
-  const handleDateSelect = (date: Date) => {
-    setSelectedDate(date)
-    if (onSelectDate) {
-      onSelectDate(date)
+  useEffect(() => {
+    if (isVisible) {
+      const formattedInitialDate = format(initialDate, "yyyy-MM-dd");
+      setSelectedDateString(formattedInitialDate);
+      setCurrentDisplayMonth(formattedInitialDate);
     }
-  }
+  }, [isVisible, initialDate]);
 
-  const handleMonthChange = (month: string) => {
-    // Simulate loading data for the new month
-    setIsLoading(true)
-    setTimeout(() => {
-      // Generate random available days for the new month
-      const newAvailableDays = Array.from({ length: 5 }, () => ({
-        day: Math.floor(Math.random() * 28) + 1,
-        isAvailable: false,
-      }))
-      setAvailableDays(newAvailableDays)
-      setIsLoading(false)
-    }, 500)
+  // This mock function simulates fetching/updating availableDays when month changes
+  // In a real app, this would call an API and update the `availableDays` prop from parent
+  const handleMonthChangeInternal = (dateData: DateData) => {
+    setCurrentDisplayMonth(dateData.dateString);
+    // Simulate fetching new available days for the new month
+    // This part should ideally be handled by the parent component by listening to an onMonthChange callback
+    // and then passing updated `availableDays` and `loading` props.
+    // For now, we assume parent handles this and updates `availableDays` & `loading` props.
+    // Example: props.onInternalMonthChange?.(dateData.dateString);
+  };
+  
+  const markedDates = useMemo(() => {
+    const marks: { [key: string]: any } = {};
+    const todayStr = format(startOfToday(), "yyyy-MM-dd");
+
+    // Process availableDays for the currentDisplayMonth
+    const year = getYear(parseISO(currentDisplayMonth));
+    const month = getMonth(parseISO(currentDisplayMonth)) + 1; // date-fns month is 0-indexed
+
+    availableDays.forEach(ad => {
+      const dayStr = ad.day < 10 ? `0${ad.day}` : String(ad.day);
+      const monthStr = month < 10 ? `0${month}` : String(month);
+      const dateString = `${year}-${monthStr}-${dayStr}`;
+      
+      marks[dateString] = {
+        disabled: !ad.isAvailable,
+        disableTouchEvent: !ad.isAvailable,
+        // marked: ad.isAvailable, // Optional: add a dot for available days
+        // dotColor: colors.primary,
+      };
+    });
+
+    // Mark today
+    if (!marks[todayStr] || (!marks[todayStr].disabled && !marks[todayStr].selected)) {
+      marks[todayStr] = { ...marks[todayStr], marked: true, dotColor: colors.success };
+    }
+    
+    // Mark selected date
+    if (selectedDateString) {
+      marks[selectedDateString] = {
+        ...(marks[selectedDateString] || {}),
+        selected: true,
+        selectedColor: colors.primary,
+        disableTouchEvent: marks[selectedDateString]?.disabled ? true : false, // Ensure disabled state is respected
+        marked: true, // Ensure dot or marking for selected
+      };
+      // If selected is also today, primary color takes precedence
+      if (selectedDateString === todayStr) {
+        marks[selectedDateString].dotColor = isDarkMode ? colors.text : "#FFFFFF"; // Dot color on selected today
+      }
+    }
+    return marks;
+  }, [selectedDateString, currentDisplayMonth, availableDays, colors, isDarkMode]);
+
+
+  const handleDayPress = (day: DateData) => {
+    if (loading) return; // Prevent selection if calendar data is loading
+
+    const dayObj = parseISO(day.dateString);
+    if (forbidden && dayObj < startOfToday() && !isSameDay(dayObj, startOfToday())) {
+      return; // Prevent selecting past dates if forbidden (unless it's today)
+    }
+
+    // Check if the date is marked as disabled from availableDays
+    if (markedDates[day.dateString]?.disabled) {
+        return;
+    }
+
+    setSelectedDateString(day.dateString)
+    // No direct call to onSelectDate here, confirmation is via button
   }
 
   const handleConfirm = () => {
-    if (onSelectDate) {
-      onSelectDate(selectedDate)
+    if (onSelectDate && selectedDateString) {
+      onSelectDate(selectedDateString)
     }
     onClose()
   }
+
+  const calendarTheme = {
+    backgroundColor: colors.card,
+    calendarBackground: colors.card,
+    textSectionTitleColor: colors.subtext,
+    selectedDayBackgroundColor: colors.primary,
+    selectedDayTextColor: isDarkMode ? colors.text : "#ffffff",
+    todayTextColor: colors.success, // Use success for today's text color
+    dayTextColor: colors.text,
+    textDisabledColor: colors.text + '4D',
+    dotColor: colors.primary, // Default dot color
+    selectedDotColor: isDarkMode ? colors.text : "#ffffff", // Dot color on selected day
+    arrowColor: colors.primary,
+    disabledArrowColor: colors.subtext + "80",
+    monthTextColor: colors.text,
+    indicatorColor: colors.primary,
+    textDayFontWeight: '400' as const,
+    textMonthFontWeight: 'bold' as const,
+    textDayHeaderFontWeight: '300' as const,
+    textDayFontSize: 15,
+    textMonthFontSize: 18,
+    textDayHeaderFontSize: 13,
+  };
 
   return (
     <Modal animationType="slide" transparent={true} visible={isVisible} onRequestClose={onClose}>
@@ -71,13 +159,17 @@ const CalendarModal: React.FC<CalendarModalProps> = ({
           </View>
 
           <View style={styles.calendarContainer}>
-            <Calendar
-              value={selectedDate}
-              onClick={handleDateSelect}
-              onMonthChange={handleMonthChange}
-              availableDays={availableDays}
-              loading={isLoading}
-              forbidden={true}
+            <ReactNativeCalendar
+              current={currentDisplayMonth}
+              onDayPress={handleDayPress}
+              markedDates={markedDates}
+              onMonthChange={handleMonthChangeInternal}
+              monthFormat={"MMMM yyyy"}
+              theme={calendarTheme}
+              minDate={forbidden ? format(startOfToday(), "yyyy-MM-dd") : undefined}
+              displayLoadingIndicator={loading} // Use the loading prop
+              hideExtraDays={true}
+              style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 8 }}
             />
           </View>
 
@@ -85,7 +177,7 @@ const CalendarModal: React.FC<CalendarModalProps> = ({
             <View style={[styles.dateDisplay, { backgroundColor: colors.background }]}>
               <Feather name="calendar" size={20} color={colors.primary} style={styles.dateIcon} />
               <Text style={[styles.dateText, { color: colors.text }]}>
-                {format(selectedDate, "EEEE, MMMM d, yyyy")}
+                {selectedDateString ? format(parseISO(selectedDateString), "EEEE, MMMM d, yyyy") : "No date selected"}
               </Text>
             </View>
           </View>

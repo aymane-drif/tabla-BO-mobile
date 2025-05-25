@@ -71,15 +71,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (authState.accessToken) {
       api.defaults.headers.common['Authorization'] = `Bearer ${authState.accessToken}`;
+      console.log('[AuthContext] Set Authorization header:', api.defaults.headers.common['Authorization']);
     } else {
       delete api.defaults.headers.common['Authorization'];
+      console.log('[AuthContext] Removed Authorization header');
     }
     // Use restaurantId from user object if available, otherwise from authState directly
     const currentRestaurantId = authState.user?.restaurantId || authState.restaurantId;
     if (currentRestaurantId) {
       api.defaults.headers.common['X-Restaurant-ID'] = currentRestaurantId;
+      console.log('[AuthContext] Set X-Restaurant-ID header:', api.defaults.headers.common['X-Restaurant-ID']);
     } else {
       delete api.defaults.headers.common['X-Restaurant-ID'];
+      console.log('[AuthContext] Removed X-Restaurant-ID header');
     }
   }, [authState.accessToken, authState.restaurantId, authState.user]);
 
@@ -107,7 +111,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // console.log("FCM Token:", fcmToken);
         // Send this token to your backend
         console.log("FCM token registered successfully:", { token: fcmToken, device_type: Platform.OS?.toUpperCase() || 'WEB'});
-        const res = await api.post('/api/v1/device-tokens/', { token: fcmToken, device_type: Platform.OS?.toUpperCase() || 'WEB'})//:  }); // Example endpoint
+        const res = await api.post('/api/v1/device-tokens/', { token: fcmToken, device_type: /*Platform.OS?.toUpperCase() ||*/ 'WEB'})//:  }); // Example endpoint
         // console.log('FCM token sent to server successfully.');
       } else {
         console.log("Failed to get FCM token");

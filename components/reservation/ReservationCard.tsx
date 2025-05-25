@@ -104,6 +104,12 @@ const ReservationCard: React.FC<ReservationCardProps> = ({
             <Feather name="users" size={16} color={colors.text} style={styles.icon} />
             <Text style={[styles.detailText, { color: colors.text }]}>{reservation.number_of_guests}</Text>
           </View>
+          {/* Reservation ID */}
+          {/* <View style={styles.detailItem}>
+            {reservation.seq_id && (
+              <Text style={[styles.reservationId, { color: colors.text + "60" }]}>#{reservation.seq_id}</Text>
+            )}
+          </View> */}
         </View>
 
         {/* Contact info */}
@@ -128,7 +134,7 @@ const ReservationCard: React.FC<ReservationCardProps> = ({
         {reservation.tables && reservation.tables.length > 0 && (
           <View style={styles.tablesContainer}>
             <Text style={[styles.tablesLabel, { color: colors.text + "80" }]}>Tables:</Text>
-            <Text style={[styles.tablesText, { color: colors.text }]}>
+            <Text style={[styles.tablesText, { color: colors.text, flexWrap: "wrap"}]}>
               {reservation.tables.map((table) => table.name).join(", ")}
             </Text>
           </View>
@@ -149,16 +155,11 @@ const ReservationCard: React.FC<ReservationCardProps> = ({
             <View style={styles.tagsList}>
               {reservation.tags.map((tag, index) => (
                 <View key={index} style={[styles.tagChip, { backgroundColor: "#88AB611A" }]}>
-                  <Text style={{ color: "#88AB61" }}>{tag}</Text>
+                  <Text style={{ color: "#88AB61", fontSize: 12, fontWeight: 'bold' }}>{tag}</Text>
                 </View>
               ))}
             </View>
           </View>
-        )}
-
-        {/* Reservation ID */}
-        {reservation.seq_id && (
-          <Text style={[styles.reservationId, { color: colors.text + "60" }]}>#{reservation.seq_id}</Text>
         )}
       </View>
 
@@ -185,15 +186,15 @@ const ReservationCard: React.FC<ReservationCardProps> = ({
 const styles = StyleSheet.create({
   container: {
     borderRadius: 12,
-    marginBottom: 16,
-    padding: 16,
+    marginBottom: 8,
+    padding: 10,
     borderWidth: 1,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 6,
   },
   nameContainer: {
     flexDirection: "row",
@@ -202,7 +203,7 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 16,
     fontWeight: "600",
-    marginLeft: 8,
+    marginLeft: 6,
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -214,11 +215,11 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   detailsContainer: {
-    marginBottom: 12,
+    // marginBottom: ,
   },
   detailRow: {
     flexDirection: "row",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   detailItem: {
     flexDirection: "row",
@@ -230,12 +231,12 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   contactContainer: {
-    marginBottom: 8,
+    
   },
   contactItem: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 4,
+    marginBottom: 6,
   },
   contactText: {
     fontSize: 13,
@@ -243,7 +244,7 @@ const styles = StyleSheet.create({
   },
   tablesContainer: {
     flexDirection: "row",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   tablesLabel: {
     fontSize: 13,
@@ -255,17 +256,20 @@ const styles = StyleSheet.create({
   },
   noteContainer: {
     flexDirection: "row",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   noteText: {
     fontSize: 13,
     marginLeft: 6,
+    marginTop: -4,
     flex: 1,
   },
   tagsContainer: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 8,
+    flexWrap: "wrap",
+    marginTop: 4,
+    marginBottom: 6,
   },
   tagsList: {
     flexDirection: "row",
@@ -273,11 +277,11 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   tagChip: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 12,
     marginRight: 4,
-    marginBottom: 4,
+    marginTop: -2,
   },
   reservationId: {
     fontSize: 12,
@@ -285,7 +289,6 @@ const styles = StyleSheet.create({
   actionsContainer: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    marginTop: 8,
   },
   actionButton: {
     width: 36,

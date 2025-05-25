@@ -40,6 +40,7 @@ export interface ReceivedTables {
 
 export interface Reservation {
   id: string
+  customer?: string
   email: string
   full_name: string
   date: string
@@ -276,11 +277,16 @@ const ReservationsScreen = () => {
       setCount(response.data.count || 0);
 
     } catch (error) {
-      console.error("Error fetching reservations:", error);
+      if (axios.isAxiosError(error)) {
+        console.log("Error fetching reservations:", { error, res: error.response });
+      } else if (error instanceof Error) {
+        console.log("Error fetching reservations:", { error, message: error.message });
+      } else {
+        console.log("Error fetching reservations:", error);
+      }
       setReservations([]);
       setFilteredReservations([]);
       setCount(0);
-      Alert.alert("Error", "Could not load reservations.");
     } finally {
       if (showLoader) setIsLoadingData(false);
     }
@@ -393,6 +399,7 @@ const ReservationsScreen = () => {
         cancellation_note: formDataFromModal.cancellation_note,
         cancellation_reason: formDataFromModal.cancellation_reason,
         tableSet: formDataFromModal.tableSet,
+        customer: formDataFromModal.customer, // Assuming this is a field in the form
         commenter: formDataFromModal.commenter,
         // Fields like id, loading, seq_id, created_at are typically handled by backend
       };
@@ -507,7 +514,7 @@ const ReservationsScreen = () => {
       setShowModal(false);
       setEditingClient(undefined);
       Alert.alert("Success", "Reservation updated successfully.");
-      await fetchReservations(false); // Refetch reservations without main loader
+      await fetchReservations(true); // Refetch reservations without main loader
     } catch (error) {
       console.error("Error updating reservation:", error);
       let errorMessage = "Failed to update reservation.";
@@ -556,13 +563,42 @@ const ReservationsScreen = () => {
     setToBeReviewedRes(id)
   }
 
-  const handleDeleteReservation = (id: string) => {
-    // In a real app, you would call an API here
-    const updatedReservations = reservations.filter((r) => r.id !== id)
-    setReservations(updatedReservations)
-    setFilteredReservations(updatedReservations)
-    setShowDeleteConfirm(false)
-  }
+  const handleDeleteReservation = async (id: string) => {
+
+    // Consider setting a specific loading state for the item being deleted if desired,
+    // or rely on the general loader from fetchReservations.
+    // For this example, we'll show a general loading state via fetchReservations.
+
+    try {
+      await api.delete(`/api/v1/bo/reservations/${id}/`);
+      
+      setShowDeleteConfirm(false); // Close the confirmation modal first
+      Alert.alert("Success", "Reservation deleted successfully.");
+      
+      // Refresh the list of reservations. 
+      // fetchReservations(true) will show a loader and update the list.
+      await fetchReservations(true); 
+
+    } catch (error) {
+      console.error(`Error deleting reservation ${id}:`, error);
+      let errorMessage = "Failed to delete reservation. Please try again.";
+      if (axios.isAxiosError(error) && error.response && error.response.data) {
+        // Attempt to provide a more specific error message from the API response
+        const errorData = error.response.data;
+        if (typeof errorData === 'string') {
+          errorMessage = `Failed to delete reservation: ${errorData}`;
+        } else if (errorData.detail) {
+          errorMessage = `Failed to delete reservation: ${errorData.detail}`;
+        } else {
+          errorMessage = `Failed to delete reservation: ${JSON.stringify(errorData)}`;
+        }
+      } else if (error instanceof Error) {
+        errorMessage = `Failed to delete reservation: ${error.message}`;
+      }
+      Alert.alert("Error", errorMessage);
+      setShowDeleteConfirm(false); // Ensure modal is closed on error as well
+    }
+  };
 
   const initiateDelete = (id: string): void => {
     if (!id) return
@@ -573,6 +609,7 @@ const ReservationsScreen = () => {
   // Filter reservations based on status
   const filterByStatus = (status: string) => {
     setFocusedFilter(status)
+    setPage(1) // Reset to first page when filtering
     if (status) {
       const filtered = reservations.filter((r) => r.status === status)
       setFilteredReservations(filtered)
@@ -816,7 +853,7 @@ const ReservationsScreen = () => {
         </View>
       ) : null}
       {/* Reservations List */}
-      {isLoadingData && reservations.length === 0 ? ( // Show main loader only if no data yet
+      {isLoadingData ? ( // Show main loader only if no data yet
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           {/* <Text style={[styles.loadingText, { color: colors.text }]}>Loading reservations...</Text> */}
@@ -825,12 +862,14 @@ const ReservationsScreen = () => {
         <FlatList
           data={filteredReservations}
           renderItem={renderReservationCard}
+          onRefresh={() => fetchReservations()} // Fetch without main loader
+          refreshing={isLoadingData} // Use isLoadingData for refresh state
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={[styles.emptyText, { color: colors.text }]}>
-                No reservations found
+                No reservations found.
               </Text>
             </View>
           }
@@ -863,14 +902,14 @@ const ReservationsScreen = () => {
                 <Feather name="x" size={24} color={colors.text} />
               </TouchableOpacity>
             </View> */}
-      <ScrollView style={styles.modalContent}>
+      {showAddReservation && <ScrollView style={styles.modalContent}>
         <AddReservationModal
           isVisible={showAddReservation}
           onClose={() => setShowAddReservation(false)}
           onSubmit={handleAddReservationSubmit} // Updated to use the new handler
           isDarkMode={isDarkMode}
         />
-      </ScrollView>
+      </ScrollView>}
       {/* </View>
         </View>
       </Modal> */}
@@ -1122,8 +1161,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   paginationContainer: {
-    marginTop: 16,
-    marginBottom: 24,
+    marginVertical: 16,
   },
   modalOverlay: {
     flex: 1,

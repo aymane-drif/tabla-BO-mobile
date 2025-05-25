@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "tabla-BO-mobile",
+    "name": "TablaBO MA",
     "slug": "tabla-BO-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -14,12 +14,10 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true,
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "supportsTablet": true
     },
     "notification": {
       "icon": "./assets/images/android/res/mipmap-hdpi/ic_launcher_monochrome.png",
-      "color": "#FFFFFF",
       "iosDisplayInForeground": true
     },
     "android": {

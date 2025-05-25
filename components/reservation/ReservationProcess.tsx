@@ -127,15 +127,7 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
         }
         
         // Determine activeTab based on pre-filled data
-        if (initialData.reserveDate && initialData.guests && initialData.time) {
-          setActiveTab("confirm");
-        } else if (initialData.reserveDate && initialData.guests) {
-          setActiveTab("time");
-        } else if (initialData.reserveDate) {
-          setActiveTab("guest");
-        } else {
-          setActiveTab("date");
-        }
+        setActiveTab("date");
 
         // Clear fetched data if prerequisites from initialData are missing
         if (!initialData.reserveDate || !initialData.guests) {
@@ -161,25 +153,39 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
 
   const fetchAvailableDates = useCallback(async (monthToFetch: string) => {
     setLoadingDates(true)
+    // Removed client-side 'today' comparison for disabling dates.
+    // The Calendar's minDate prop handles disabling dates before today.
+    // API response will now solely determine availability for dates it reports on (including today).
+
     try {
       // API endpoint expects YYYY-MM format for the month
       const monthYear = format(parseISO(monthToFetch), "yyyy-MM")
       const response = await api.get<AvailableDateAPIItem[]>(
         `/api/v1/bo/availability/work-shifts/${monthYear}/`
       )
-      
+      console.log("Fetched available dates for month:", monthYear, response.data)
       const newMarkedDates: {[date: string]: any} = {};
-      const year = getYear(parseISO(monthToFetch));
-      const month = getMonth(parseISO(monthToFetch)) + 1; // date-fns month is 0-indexed
-      console.log("Fetched available dates for month:", monthYear, response.data);
+      const parsedMonthDate = parseISO(monthToFetch); // Parse once for efficiency
+      const year = getYear(parsedMonthDate);
+      const month = getMonth(parsedMonthDate) + 1; // date-fns month is 0-indexed
+      
       (response.data || []).forEach(item => {
         const dayStr = item.day < 10 ? `0${item.day}` : String(item.day);
         const monthStr = month < 10 ? `0${month}` : String(month);
         const dateString = `${year}-${monthStr}-${dayStr}`;
-        
-        if (item.isAvailable) {
+        //check dateString is before today
+        const dateObj = (new Date(dateString))?.getTime();
+        const today = (new Date())?.getTime();
+
+
+
+
+        // Availability is determined by the API.
+        // The Calendar's minDate prop will prevent selection of dates strictly before today.
+        console.log(`Processing date: ${dateString}, isAvailable: ${item.isAvailable}`);
+        if (item.isAvailable && dateObj >= today) { // Only mark available dates that are not in the past
           newMarkedDates[dateString] = {
-            marked: false, // Keep marked false unless it's also selected
+            marked: false, // Dot visibility is typically handled by selection logic or if specifically needed for all available dates
             disabled: false,
             disableTouchEvent: false,
           }
@@ -187,7 +193,6 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
           newMarkedDates[dateString] = {
             disabled: true,
             disableTouchEvent: true,
-            // marked: false, // No dot for unavailable dates
           }
         }
       })
@@ -195,7 +200,7 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
     } catch (error) {
       console.log("Failed to fetch available dates:", error)
       Alert.alert("Error", "Could not load available dates.");
-      setMarkedDates({})
+      setMarkedDates({}) // Clear marked dates on error
     } finally {
       setLoadingDates(false)
     }
@@ -207,36 +212,36 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
     }
   }, [currentCalendarMonth, fetchAvailableDates, isVisible])
   
-  // Update markedDates when selectedDate changes
-  useEffect(() => {
-    setMarkedDates(prevMarkedDates => {
-      const newMarkedDates = { ...prevMarkedDates };
-      // Reset previous selection
-      console.log("Updating markedDates for selectedDate:", selectedDate);
-      (Object.keys(newMarkedDates) || [])?.forEach(date => {
-        if (newMarkedDates[date].selected) {
-          // Keep other properties like 'disabled', but remove 'selected' styling
-          newMarkedDates[date] = { ...newMarkedDates[date], selected: false, selectedColor: undefined, marked: prevMarkedDates[date]?.disabled ? false : true };
-        }
-      });
-      if (selectedDate && newMarkedDates[selectedDate]) {
-        newMarkedDates[selectedDate] = {
-          ...newMarkedDates[selectedDate],
-          selected: true,
-          selectedColor: colors.primary,
-          marked: true, // Ensure selected date has a dot or is marked
-        };
-      } else if (selectedDate) { // If selectedDate is not in current markedDates (e.g. different month loaded)
-         newMarkedDates[selectedDate] = {
-            selected: true,
-            selectedColor: colors.primary,
-            marked: true,
-            disabled: false, // Assume it's selectable if chosen
-         };
-      }
-      return newMarkedDates;
-    });
-  }, [selectedDate, colors.primary]);
+  // // Update markedDates when selectedDate changes
+  // useEffect(() => {
+  //   setMarkedDates(prevMarkedDates => {
+  //     const newMarkedDates = { ...prevMarkedDates };
+  //     // Reset previous selection
+  //     console.log("Updating markedDates for selectedDate:", selectedDate);
+  //     (Object.keys(newMarkedDates) || [])?.forEach(date => {
+  //       if (newMarkedDates[date].selected) {
+  //         // Keep other properties like 'disabled', but remove 'selected' styling
+  //         newMarkedDates[date] = { ...newMarkedDates[date], selected: false, selectedColor: undefined, marked: prevMarkedDates[date]?.disabled ? false : true };
+  //       }
+  //     });
+  //     if (selectedDate && newMarkedDates[selectedDate]) {
+  //       newMarkedDates[selectedDate] = {
+  //         ...newMarkedDates[selectedDate],
+  //         selected: true,
+  //         selectedColor: colors.primary,
+  //         marked: true, // Ensure selected date has a dot or is marked
+  //       };
+  //     } else if (selectedDate) { // If selectedDate is not in current markedDates (e.g. different month loaded)
+  //        newMarkedDates[selectedDate] = {
+  //           selected: true,
+  //           selectedColor: colors.primary,
+  //           marked: true,
+  //           disabled: false, // Assume it's selectable if chosen
+  //        };
+  //     }
+  //     return newMarkedDates;
+  //   });
+  // }, [selectedDate, colors.primary]);
 
 
   const fetchAvailableTimes = useCallback(async () => {
@@ -295,6 +300,7 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
   const handleGuestSelection = (guests: number) => {
     setSelectedGuests(guests)
     setManualGuestInput(String(guests))
+    setLoadingTimes(true) // Reset loading state for times
     setSelectedTime(null) // Reset time
     setAvailableTimes({}) // Clear available times as they depend on guest count
     if (selectedDate) {
@@ -306,7 +312,7 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
 
   const handleManualGuestConfirm = () => {
     const numGuests = parseInt(manualGuestInput, 10);
-    if (!isNaN(numGuests) && numGuests >= minGuests && numGuests <= maxGuests) {
+    if (!isNaN(numGuests) && numGuests >= minGuests) {
       handleGuestSelection(numGuests);
     } else {
       Alert.alert("Invalid Input", `Please enter a number between ${minGuests} and ${maxGuests}.`);
@@ -377,6 +383,7 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
             }),
           }}
           onMonthChange={(date) => {
+            setLoadingDates(true);
             setCurrentCalendarMonth(date.dateString); // This will trigger fetchAvailableDates via useEffect
           }}
           monthFormat={"MMMM yyyy"}
@@ -384,7 +391,6 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
           minDate={format(new Date(), "yyyy-MM-dd")} // Optional: prevent past dates
           // firstDay={1} // Monday as first day of week
           hideExtraDays={true}
-          style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 8 }}
         />
     </View>
   )
@@ -429,9 +435,8 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
             keyboardType="number-pad"
             value={manualGuestInput}
             onChangeText={setManualGuestInput}
-            placeholder={`e.g. ${minGuests}-${maxGuests}`}
+            placeholder={`Number of guests`}
             placeholderTextColor={colors.subtext}
-            maxLength={2}
           />
           <TouchableOpacity
             style={[styles.confirmGuestButton, { backgroundColor: colors.primary }]
@@ -596,7 +601,10 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
                 { borderBottomColor: colors.primary },
                 !(selectedDate && selectedGuests) && styles.disabledTab,
               ]}
-              onPress={() => selectedDate && selectedGuests && setActiveTab("time")}
+              onPress={() => {if(selectedDate && selectedGuests){
+                setLoadingTimes(true)
+                setActiveTab("time")
+              }}}
               disabled={!(selectedDate && selectedGuests)}
             >
               <Text style={[styles.tabText, { color: !(selectedDate && selectedGuests) ? colors.subtext + "80" : activeTab === "time" ? colors.primary : colors.subtext }]}>
@@ -778,7 +786,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   timeSlotScrollView: {
-    maxHeight: height * 0.4, // Limit height of time slots
+    maxHeight: height * 0.6, // Limit height of time slots
     flex: 1, // If the content area should expand
   },
   timeCategory: {

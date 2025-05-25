@@ -57,7 +57,7 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
 
     // Listener for foreground FCM messages
     const unsubscribe = messaging().onMessage(async remoteMessage => {
-      console.log('FCM Message received in foreground (CustomHeader):', remoteMessage);
+      console.log('FCM Message received in foreground (CustomHeader):');
       // Assuming any new message could affect the count, so refetch.
       fetchGlobalCounts();
     });
@@ -76,7 +76,7 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
 
   useEffect(() => {
     const unsubscribe = messaging().onMessage(async remoteMessage => {
-      console.log('FCM Message received in CustomHeader:', remoteMessage);
+      console.log('FCM Message received in CustomHeader:');
       // Refresh notification count when a new message arrives
       fetchGlobalCounts();
     });

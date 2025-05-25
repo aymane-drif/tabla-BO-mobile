@@ -287,7 +287,6 @@ const ReservationsScreen = () => {
       setReservations([]);
       setFilteredReservations([]);
       setCount(0);
-      Alert.alert("Error", "Could not load reservations.");
     } finally {
       if (showLoader) setIsLoadingData(false);
     }

@@ -160,8 +160,8 @@ const EditReservationModal = ({
       const fetchOccasions = async () => {
         setLoadingOccasions(true)
         try {
-          const response = await api.get<{ results: Occasion[] }>("/api/v1/bo/occasions/")
-          setOccasions(response.data.results || [])
+          const response = await api.get("/api/v1/bo/occasions/")
+          setOccasions(response.data || [])
         } catch (error) {
           console.error("Failed to fetch occasions:", error)
         } finally {

@@ -23,7 +23,7 @@ import ReservationProcess from "./ReservationProcess"
 
 // Types and Interfaces
 interface Reservation {
-  id: string
+  customer?: string
   email?: string
   full_name?: string
   date?: string
@@ -78,13 +78,23 @@ const AddReservationModal = (props: AddReservationModalProps) => {
   const [searchResults, setSearchResults] = useState<Client[]>([])
   const [count, setCount] = useState(0) // This might be set by fetchClients if API returns total count
   const [selectedOccasion, setSelectedOccasion] = useState<number | null>(null)
-  const [occasions, setOccasions] = useState<Occasion[]>([
-    { id: 1, name: "Birthday" },
-    { id: 2, name: "Anniversary" },
-    { id: 3, name: "Business Meeting" },
-    { id: 4, name: "Date Night" },
-    { id: 5, name: "Family Gathering" },
-  ])
+  const [occasions, setOccasions] = useState<Occasion[]>([])
+
+  useEffect(() => {
+    const fetchOccasions = async () => {
+      try {
+        const response = await api.get("/api/v1/bo/occasions/");
+        console.log("Occasions fetched:", response.data); // Debugging log
+        setOccasions(response.data); // Adjust based on actual API response structure
+      } catch (error) {
+        console.error("Error fetching occasions:", error);
+        // Optionally, set occasions to an empty array or show an error
+        setOccasions([]);
+      }
+    };
+
+    fetchOccasions();
+  }, []);
   const [data, setData] = useState<DataTypes>({
     reserveDate: props.timeAndDate?.date || "",
     time: props.timeAndDate?.time || "",
@@ -93,7 +103,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
   const [focusedClient, setFocusedClient] = useState(false)
   const [inputName, setInputName] = useState("")
   const [formData, setFormData] = useState({
-    id: "0",
+    customer: "",
     full_name: "",
     email: "",
     source: "BACK_OFFICE",
@@ -110,6 +120,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [showTimePicker, setShowTimePicker] = useState(false)
   const [showGuestPicker, setShowGuestPicker] = useState(false)
+  const [showOccasionSelectionModal, setShowOccasionSelectionModal] = useState(false); // New state for occasion modal
 
   const [newCustomerData, setNewCustomerData] = useState({
     first_name: "",
@@ -174,7 +185,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
   const handleSelectClient = (client: Client) => {
     setFormData({
       ...formData,
-      id: client.id,
+      customer: client.id,
       full_name: client.full_name,
       email: client.email,
       phone: client.phone,
@@ -196,6 +207,44 @@ const AddReservationModal = (props: AddReservationModalProps) => {
     setNewCustomerData((prev) => ({ ...prev, [id]: value }))
   }
 
+  const resetFormState = () => {
+    setSearchKeyword("");
+    setSearchResults([]);
+    setSelectedOccasion(null);
+    setData({
+      reserveDate: props.timeAndDate?.date || "",
+      time: props.timeAndDate?.time || "",
+      guests: 2,
+    });
+    setFocusedClient(false);
+    setInputName("");
+    setFormData({
+      customer: "",
+      full_name: "",
+      email: "",
+      source: "BACK_OFFICE",
+      phone: "",
+      comment: "",
+    });
+    setCreateUser(true);
+    setShowReservationProcess(false);
+    setNewClient(false);
+    setFindClient(true); // Reset to client search view
+    setSelectedClient(null);
+    setShowDatePicker(false);
+    setShowTimePicker(false);
+    setShowGuestPicker(false);
+    setNewCustomerData({
+      first_name: "",
+      last_name: "",
+      email: "",
+      phone: "",
+      source: "BACK_OFFICE",
+      note: "",
+      title: "mr",
+    });
+  };
+
   // Handle add reservation
   const handleAddReservation = () => {
     setIsLoading(true)
@@ -203,12 +252,12 @@ const AddReservationModal = (props: AddReservationModalProps) => {
     // Simulate API call
     setTimeout(() => {
       const reservationData: Reservation = {
-        id: Date.now().toString(),
         full_name: formData.full_name,
         email: formData.email,
         phone: formData.phone,
         internal_note: formData.comment,
         date: data.reserveDate || "",
+        customer: formData.customer || "",
         time: data.time || "",
         source: formData.source || "BACK_OFFICE",
         number_of_guests: data.guests ? data.guests.toString() : "",
@@ -218,6 +267,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
 
       props.onSubmit(reservationData)
       props.onClose()
+      resetFormState(); // Reset state after submission
       setIsLoading(false)
     }, 1000)
   }
@@ -229,12 +279,14 @@ const AddReservationModal = (props: AddReservationModalProps) => {
     // Simulate API call
     setTimeout(() => {
       if (!createUser) {
+        // In this case, handleAddReservationWithoutCustomer is responsible for submission, closing, and should also handle reset.
+        // If handleAddReservationWithoutCustomer is not modified to include resetFormState(), this path won't reset.
         handleAddReservationWithoutCustomer()
+        // setIsLoading(false) is handled within handleAddReservationWithoutCustomer for this path.
         return
       }
 
       const reservationData: Reservation = {
-        id: Date.now().toString(),
         full_name: `${newCustomerData.first_name} ${newCustomerData.last_name}`,
         email: newCustomerData.email,
         phone: newCustomerData.phone,
@@ -249,6 +301,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
 
       props.onSubmit(reservationData)
       props.onClose()
+      resetFormState(); // Reset state after submission for new customer (when createUser is true)
       setIsLoading(false)
     }, 1000)
   }
@@ -260,7 +313,6 @@ const AddReservationModal = (props: AddReservationModalProps) => {
     // Simulate API call
     setTimeout(() => {
       const reservationData: Reservation = {
-        id: Date.now().toString(),
         full_name: `${newCustomerData.first_name} ${newCustomerData.last_name}`,
         date: data.reserveDate || "",
         time: data.time || "",
@@ -322,6 +374,82 @@ const AddReservationModal = (props: AddReservationModalProps) => {
       />
     );
   }
+
+  // Render Occasion Selection Modal
+  const renderOccasionSelectionModal = () => (
+    <Modal visible={showOccasionSelectionModal} transparent animationType="slide">
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalContainer, { backgroundColor: colors.card }]}>
+          <View style={styles.modalHeader}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Select Occasion</Text>
+            <TouchableOpacity onPress={() => setShowOccasionSelectionModal(false)}>
+              <Feather name="x" size={24} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            <TouchableOpacity
+              style={[
+                styles.modalButton, // Using existing modalButton style, can be customized if needed
+                { backgroundColor: colors.background }, // Example style, adjust as needed
+                selectedOccasion === null && {
+                  backgroundColor: colors.primary + "20",
+                  borderColor: colors.primary,
+                  borderWidth: 1,
+                },
+              ]}
+              onPress={() => {
+                setSelectedOccasion(null);
+                setShowOccasionSelectionModal(false);
+              }}
+            >
+              <Text
+                style={{
+                  color: selectedOccasion === null ? colors.primary : colors.text,
+                  fontWeight: selectedOccasion === null ? "600" : "normal",
+                }}
+              >
+                No Occasion
+              </Text>
+              {selectedOccasion === null && <Feather name="check" size={20} color={colors.primary} />}
+            </TouchableOpacity>
+
+            {occasions.map((occasion) => (
+              <TouchableOpacity
+                key={occasion.id}
+                style={[
+                  styles.modalButton, // Using existing modalButton style
+                  { backgroundColor: colors.background }, // Example style, adjust as needed
+                  selectedOccasion === occasion.id && {
+                    backgroundColor: colors.primary + "20",
+                    borderColor: colors.primary,
+                    borderWidth: 1,
+                  },
+                ]}
+                onPress={() => {
+                  setSelectedOccasion(occasion.id);
+                  setShowOccasionSelectionModal(false);
+                }}
+              >
+                <Text
+                  style={{
+                    color: selectedOccasion === occasion.id ? colors.primary : colors.text,
+                    fontWeight: selectedOccasion === occasion.id ? "600" : "normal",
+                  }}
+                >
+                  {occasion.name}
+                </Text>
+                {selectedOccasion === occasion.id && <Feather name="check" size={20} color={colors.primary} />}
+              </TouchableOpacity>
+            ))}
+            {occasions.length === 0 && (
+              <Text style={{ color: colors.subtext, textAlign: 'center', marginTop: 10 }}>No occasions available.</Text>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
 
   // Render client search screen
   const renderClientSearch = () => (
@@ -489,8 +617,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
             <TouchableOpacity
               style={[styles.occasionButton, { backgroundColor: colors.card, borderColor: colors.border }]}
               onPress={() => {
-                // In a real app, you would show a picker here
-                setSelectedOccasion(selectedOccasion === null ? 1 : null)
+                setShowOccasionSelectionModal(true); // Open the modal
               }}
             >
               <Text style={[styles.occasionButtonText, { color: colors.text }]}>
@@ -649,7 +776,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
             style={[styles.occasionButton, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={() => {
               // In a real app, you would show a picker here
-              setSelectedOccasion(selectedOccasion === null ? 1 : null)
+              setShowOccasionSelectionModal(true); // Open the modal
             }}
           >
             <Text style={[styles.occasionButtonText, { color: colors.text }]}>
@@ -743,6 +870,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
       <View style={{ flex: 1, backgroundColor: colors.background }}>
         {findClient ? renderClientSearch() : renderClientDetails()}
         {renderReservationProcess()}
+        {renderOccasionSelectionModal()}
       </View>
     </Modal>
   )

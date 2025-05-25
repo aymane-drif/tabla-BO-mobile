@@ -27,6 +27,7 @@
       "package": "com.tabla.tablabomobile",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+        "monochromeImage": "./assets/images/android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true

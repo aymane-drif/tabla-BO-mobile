@@ -14,7 +14,9 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tabla.tablabomobile",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "notification": {
       "icon": "./assets/images/android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png",

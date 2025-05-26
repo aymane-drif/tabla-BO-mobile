@@ -9,6 +9,7 @@ import CustomHeader from "@/components/CustomHeader"
 import CustomTabBar from "@/components/CustomTabBar"
 import CalendarModal from "@/components/calendar/CalendarModal"
 import ReservationProcess from "@/components/reservation/ReservationProcess"
+import AsyncStorage from "@react-native-async-storage/async-storage"
 
 export default function TabLayout() {
   const colorScheme = useColorScheme()
@@ -50,9 +51,15 @@ export default function TabLayout() {
     // },
   ]
 
-  const handleDateSelect = (date: string) => {
+  const handleDateSelect = async (date: string) => {
     setSelectedDate(date)
     console.log("Selected date:", date)
+    try {
+      // TODO: Consider using a more descriptive key for AsyncStorage
+      await AsyncStorage.setItem("selectedDate", date)
+    } catch (error) {
+      console.error("Failed to save selected date to AsyncStorage", error)
+    }
     // You can use this date to filter reservations or navigate to a specific date view
   }
 

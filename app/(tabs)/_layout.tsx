@@ -14,7 +14,7 @@ export default function TabLayout() {
   const colorScheme = useColorScheme()
   const [showCalendar, setShowCalendar] = useState(false)
   const [showReservationProcess, setShowReservationProcess] = useState(false)
-  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString())
 
   // Define tabs for our custom tab bar
   const tabs = [
@@ -50,7 +50,7 @@ export default function TabLayout() {
     // },
   ]
 
-  const handleDateSelect = (date: Date) => {
+  const handleDateSelect = (date: string) => {
     setSelectedDate(date)
     console.log("Selected date:", date)
     // You can use this date to filter reservations or navigate to a specific date view
@@ -129,7 +129,7 @@ export default function TabLayout() {
         isVisible={showCalendar}
         onClose={() => setShowCalendar(false)}
         onSelectDate={handleDateSelect}
-        initialDate={selectedDate}
+        initialDate={new Date(selectedDate)}
       />
 
       {/* Reservation Process Modal

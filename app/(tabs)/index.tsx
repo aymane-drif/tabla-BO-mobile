@@ -1,5 +1,9 @@
 "use client"
 
+import { useLocalSearchParams, useRouter } from 'expo-router'; // Added useLocalSearchParams
+import { api } from '../../api/axiosInstance'; // Assuming api is your configured axios instance
+import { Alert } from 'react-native'; // Added Alert
+import axios from 'axios'; // Added axios for type checking
 import { useEffect, useState } from "react"
 import {
   View,
@@ -11,7 +15,7 @@ import {
   Modal,
   ScrollView,
   SafeAreaView,
-  Alert,
+  Alert as RNAlert,
   Button,
 } from "react-native"
 import { format } from "date-fns"
@@ -25,7 +29,7 @@ import EditReservationModal from "../../components/reservation/EditReservationMo
 import ActionConfirmation from "../../components/reservation/ActionConfirmation"
 import ColumnCustomizationModal from "../../components/reservation/ColumnCustomizationModal"
 import AddReservationModal from "@/components/reservation/AddReservationModal"
-import { ErrorBoundaryProps, useRouter } from "expo-router"
+import { ErrorBoundaryProps } from "expo-router"
 
 // Types and Interfaces
 export interface ReceivedTables {
@@ -174,6 +178,8 @@ export function ErrorBoundary(props: ErrorBoundaryProps) {
 // Main ReservationsScreen Component
 const ReservationsScreen = () => {
   const { isDarkMode, colors } = useTheme()
+  const router = useRouter(); // For navigation if needed, or clearing params
+  const params = useLocalSearchParams<{ reservation_id?: string }>(); // Get route params
 
   // Column configuration
   const { loadColumnsFromStorage, saveColumnsToStorage } = useColumnConfiguration()
@@ -213,7 +219,7 @@ const ReservationsScreen = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [filterDate, setFilterDate] = useState<boolean>(true)
   const [showFilterModal, setShowFilterModal] = useState<boolean>(false)
-  const router = useRouter();
+  const [isLoadingData, setIsLoadingData] = useState<boolean>(true); // Combined loading state
 
   // Reservation progress data
   const [reservationProgressData, setReservationProgressData] = useState<DataTypes>({
@@ -237,121 +243,93 @@ const ReservationsScreen = () => {
   }, [columns])
 
   
+  // API call to fetch reservations
+  const fetchReservations = async (showLoader = true) => {
+    if (showLoader) setIsLoadingData(true);
+    try {
+      // Construct query parameters
+      const queryParams = new URLSearchParams();
+      queryParams.append('page', page.toString());
+      queryParams.append('page_size', '10'); 
+      if (focusedFilter) {
+        queryParams.append('status', focusedFilter);
+      }
+      if (selectedDateRange.start) {
+        queryParams.append('date__gte', format(selectedDateRange.start, 'yyyy-MM-dd'));
+      }
+      if (selectedDateRange.end) {
+        queryParams.append('date__lte', format(selectedDateRange.end, 'yyyy-MM-dd'));
+      } else if (filterDate && !selectedDateRange.start) {
+        const today = new Date();
+        queryParams.append('date__gte', format(today, 'yyyy-MM-dd'));
+        queryParams.append('date__lte', format(today, 'yyyy-MM-dd'));
+      }
+      if (searchKeyWord) {
+        queryParams.append('search', searchKeyWord);
+      }
+      queryParams.append('ordering', '-id'); 
+      // console.log("Fetching reservations with params:", queryParams.toString());
+      const response = await api.get(`/api/v1/bo/reservations/?${queryParams.toString()}`);
+      
+      setReservations(response.data.results || []);
+      setFilteredReservations(response.data.results || []); 
+      setCount(response.data.count || 0);
 
-  // You can call fetchReservations() in a useEffect if you want to load from API instead of mock data
-
-  // Mock data loading
+    } catch (error) {
+      console.error("Error fetching reservations:", error);
+      setReservations([]);
+      setFilteredReservations([]);
+      setCount(0);
+      Alert.alert("Error", "Could not load reservations.");
+    } finally {
+      if (showLoader) setIsLoadingData(false);
+    }
+  };
+  
+  // Fetch reservations on initial load and when dependencies change
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      const mockReservations: Reservation[] = [
-        {
-          id: "1",
-          full_name: "John Smith",
-          email: "john.smith@example.com",
-          phone: "+1 555-123-4567",
-          date: "2025-05-20",
-          time: "19:00:00",
-          number_of_guests: "4",
-          status: "APPROVED",
-          internal_note: "Birthday celebration",
-          tables: [{ id: 1, name: "Table 5" }],
-          seq_id: "1001",
-          tags: ["VIP", "Regular"],
-        },
-        {
-          id: "2",
-          full_name: "Emma Johnson",
-          email: "emma.j@example.com",
-          phone: "+1 555-987-6543",
-          date: "2025-05-20",
-          time: "20:30:00",
-          number_of_guests: "2",
-          status: "PENDING",
-          seq_id: "1002",
-        },
-        {
-          id: "3",
-          full_name: "Michael Brown",
-          email: "michael.b@example.com",
-          phone: "+1 555-456-7890",
-          date: "2025-05-21",
-          time: "18:00:00",
-          number_of_guests: "6",
-          status: "SEATED",
-          tables: [{ id: 2, name: "Table 10" }],
-          seq_id: "1003",
-          commenter: "Prefers window seating",
-        },
-        {
-          id: "4",
-          full_name: "Sarah Wilson",
-          email: "sarah.w@example.com",
-          phone: "+1 555-789-0123",
-          date: "2025-05-21",
-          time: "19:30:00",
-          number_of_guests: "3",
-          status: "FULFILLED",
-          seq_id: "1004",
-        },
-        {
-          id: "5",
-          full_name: "David Lee",
-          email: "david.l@example.com",
-          phone: "+1 555-234-5678",
-          date: "2025-05-22",
-          time: "20:00:00",
-          number_of_guests: "5",
-          status: "CANCELED",
-          cancellation_note: "Family emergency",
-          seq_id: "1005",
-        },
-        {
-          id: "6",
-          full_name: "David Lee",
-          email: "david.l@example.com",
-          phone: "+1 555-234-5678",
-          date: "2025-05-22",
-          time: "20:00:00",
-          number_of_guests: "5",
-          status: "NO_SHOW",
-          cancellation_note: "Family emergency",
-          seq_id: "1005",
-        },
-        {
-          id: "7",
-          full_name: "Sophia Martinez",
-          email: "acsn@afns.com",
-          phone: "+1 555-321-0987",
-          date: "2025-05-22",
-          time: "21:00:00",
-          number_of_guests: "8",
-          status: "APPROVED",
-          tables: [{ id: 3, name: "Table 15" }],
-          seq_id: "1006",
-          tags: ["VIP"],
-        },
-        {
-          id: "8",
-          full_name: "James Taylor",
-          email: "acsn@afns.com",
-          phone: "+1 555-654-3210",
-          date: "2025-05-23",
-          time: "18:30:00",
-          number_of_guests: "2",
-          status: "PENDING",
-          tables: [{ id: 4, name: "Table 20" }],
-          seq_id: "1007",
-          tags: ["Regular"],
-        },
-      ]
+    fetchReservations();
+  }, [page, focusedFilter, selectedDateRange, searchKeyWord, filterDate]);
 
-      setReservations(mockReservations)
-      setFilteredReservations(mockReservations)
-      setCount(mockReservations.length)
-      setIsLoading(false)
-    }, 1500)
-  }, [])
+  // Effect to handle reservation_id from route params
+  useEffect(() => {
+    const reservationIdFromParam = params.reservation_id;
+    if (reservationIdFromParam && !showModal) { // Process only if ID exists and modal isn't already open for it
+      const fetchAndShowReservation = async (id: string) => {
+        setIsLoadingData(true);
+        try {
+          const response = await api.get<Reservation>(`/api/v1/bo/reservations/${id}/`);
+          const reservationData = response.data;
+          if (reservationData) {
+            setSelectedClient(reservationData);
+            setReservationProgressData({
+              reserveDate: reservationData.date,
+              time: reservationData.time.slice(0, 5), // HH:mm
+              guests: parseInt(reservationData.number_of_guests, 10) || 0,
+            });
+            setEditingClient(reservationData.id); // Keep track of which client is being edited
+            setShowModal(true);
+            // Optionally clear the param from URL if desired, though not strictly necessary
+            // router.setParams({ reservation_id: undefined }); 
+          } else {
+            Alert.alert("Not Found", `Reservation with ID ${id} not found.`);
+          }
+        } catch (error) {
+          console.error(`Error fetching reservation ${id}:`, error);
+          Alert.alert("Error", `Could not load reservation ${id}.`);
+        } finally {
+          setIsLoadingData(false);
+        }
+      };
+      fetchAndShowReservation(reservationIdFromParam);
+    }
+  }, [params.reservation_id, showModal]);
+
+
+  // Save column preferences when they change
+  useEffect(() => {
+    saveColumnsToStorage(columns)
+  }, [columns])
 
   // Effect to update search results
   useEffect(() => {
@@ -388,6 +366,63 @@ const ReservationsScreen = () => {
   const handleSaveColumns = (updatedColumns: ColumnConfig[]) => {
     setColumns(updatedColumns)
   }
+
+  const handleAddReservationSubmit = async (formDataFromModal: Partial<Reservation>) => {
+    try {
+      // Construct the payload for the API
+      const payload: any = { // Use 'any' for flexibility or define a more specific create type
+        full_name: formDataFromModal.full_name || "",
+        email: formDataFromModal.email || "",
+        phone: formDataFromModal.phone || "",
+        date: formDataFromModal.date, // Ensure format is yyyy-MM-dd, AddReservationModal should handle this
+        time: formDataFromModal.time, // Ensure format is HH:mm or HH:mm:ss
+        number_of_guests: formDataFromModal.number_of_guests || "0",
+        status: formDataFromModal.status || "PENDING",
+        internal_note: formDataFromModal.internal_note || "",
+        source: formDataFromModal.source || "MANUAL_ENTRY", // Default or from form
+        allergies: formDataFromModal.allergies || "",
+        tables: formDataFromModal.tables, // Pass as is, assuming AddReservationModal provides correct format or it's optional
+        // Handle occasion: API might expect just an ID or the full object.
+        // This example assumes API might take an ID if occasion is an object with an id.
+        occasion: typeof formDataFromModal.occasion === 'object' && formDataFromModal.occasion !== null && 'id' in formDataFromModal.occasion
+            ? (formDataFromModal.occasion as { id: number }).id
+            : typeof formDataFromModal.occasion === 'number'
+            ? formDataFromModal.occasion
+            : undefined,
+        // Optional fields from Reservation that might be part of formDataFromModal
+        cancellation_note: formDataFromModal.cancellation_note,
+        cancellation_reason: formDataFromModal.cancellation_reason,
+        tableSet: formDataFromModal.tableSet,
+        commenter: formDataFromModal.commenter,
+        // Fields like id, loading, seq_id, created_at are typically handled by backend
+      };
+
+      // Remove undefined fields from payload to keep it clean
+      Object.keys(payload).forEach(key => {
+        if (payload[key] === undefined) {
+          delete payload[key];
+        }
+      });
+
+      await api.post('/api/v1/bo/reservations/', payload);
+
+      setShowAddReservation(false);
+      await fetchReservations(); // Refresh list and update count
+
+      Alert.alert("Success", "Reservation created successfully.");
+
+    } catch (error) {
+      console.error("Error creating reservation:", error);
+      let errorMessage = "Failed to create reservation. Please try again.";
+      if (axios.isAxiosError(error) && error.response && error.response.data) {
+        // You might want to parse error.response.data for a more specific message
+        errorMessage = `Failed to create reservation: ${JSON.stringify(error.response.data)}`;
+      }
+      Alert.alert("Error", errorMessage);
+      // Ensure loading state is reset if not handled by fetchReservations' finally block
+      // setIsLoading(false); 
+    }
+  };
 
   // Handler functions
   const handleDateClick = (range: { start: Date; end: Date }): void => {
@@ -433,37 +468,59 @@ const ReservationsScreen = () => {
     }
   }
 
-  const upDateHandler = (updatedReservation: Reservation): void => {
-    // Normalize occasion to match expected type: { id: number; name: string } | undefined
-    let normalizedOccasion: { id: number; name: string } | undefined = undefined
-    if (updatedReservation.occasion && typeof updatedReservation.occasion === "object" && "id" in updatedReservation.occasion && "name" in updatedReservation.occasion) {
-      normalizedOccasion = updatedReservation.occasion as { id: number; name: string }
+  const upDateHandler = async (updatedReservation: Reservation) => {
+    if (!editingClient) {
+      Alert.alert("Error", "No reservation selected for update.");
+      return;
     }
+    setIsLoadingData(true); // Indicate loading for the update operation
+    try {
+      const payload = {
+        full_name: updatedReservation.full_name,
+        email: updatedReservation.email,
+        phone: updatedReservation.phone,
+        // table_name: updatedReservation.table_name, // If applicable
+        source: updatedReservation.source,
+        status: updatedReservation.status,
+        internal_note: updatedReservation.internal_note,
+        occasion: typeof updatedReservation.occasion === 'object' && updatedReservation.occasion !== null 
+                    ? (updatedReservation.occasion as { id: number }).id 
+                    : updatedReservation.occasion,
+        date: reservationProgressData.reserveDate, // From reservationProgressData
+        time: `${reservationProgressData.time}:00`, // From reservationProgressData, ensure HH:mm:ss
+        tables: updatedReservation.tables?.map(table => table.id), // Array of table IDs
+        number_of_guests: reservationProgressData.guests, // From reservationProgressData
+        commenter: updatedReservation.commenter,
+        allergies: updatedReservation.allergies,
+        // Add any other fields that can be updated
+      };
 
-    const updatedReservations = reservations.map((r) =>
-      r.id === editingClient
-        ? {
-            ...r,
-            full_name: updatedReservation.full_name,
-            email: updatedReservation.email,
-            phone: updatedReservation.phone,
-            table_name: updatedReservation.table_name,
-            source: updatedReservation.source,
-            status: updatedReservation.status,
-            internal_note: updatedReservation.internal_note,
-            occasion: normalizedOccasion,
-            date: reservationProgressData.reserveDate,
-            time: `${reservationProgressData.time}:00`,
-            tables: updatedReservation.tables,
-            number_of_guests: String(reservationProgressData.guests),
-            commenter: updatedReservation.commenter,
-          }
-        : r,
-    )
+      // Remove undefined fields from payload
+      Object.keys(payload).forEach(key => {
+        if ((payload as any)[key] === undefined) {
+          delete (payload as any)[key];
+        }
+      });
 
-    setReservations(updatedReservations)
-    setFilteredReservations(updatedReservations)
-    setShowModal(false)
+      await api.put(`/api/v1/bo/reservations/${editingClient}/`, payload);
+      
+      setShowModal(false);
+      setEditingClient(undefined);
+      Alert.alert("Success", "Reservation updated successfully.");
+      await fetchReservations(false); // Refetch reservations without main loader
+    } catch (error) {
+      console.error("Error updating reservation:", error);
+      let errorMessage = "Failed to update reservation.";
+      if (axios.isAxiosError(error) && error.response && error.response.data) {
+        // Construct a more detailed error message if possible
+        const errorData = error.response.data;
+        const messages = Object.entries(errorData).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`);
+        errorMessage += `\n${messages.join('\n')}`;
+      }
+      Alert.alert("Error", errorMessage);
+    } finally {
+      setIsLoadingData(false);
+    }
   }
 
   const showStatusModification = (id: string): void => {
@@ -542,7 +599,9 @@ const ReservationsScreen = () => {
   )
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
       {/* Header */}
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>Reservations</Text>
@@ -555,7 +614,6 @@ const ReservationsScreen = () => {
           </TouchableOpacity>
         </View>
       </View>
-
       {/* Search and Filter Bar */}
       <View style={styles.searchFilterContainer}>
         <View style={styles.searchContainer}>
@@ -568,13 +626,18 @@ const ReservationsScreen = () => {
           <Feather name="filter" size={20} color={colors.text} />
         </TouchableOpacity>
       </View>
-      <Text style={[styles.filterSectionTitle, { color: colors.text }]}>Status</Text>
+      <Text style={[styles.filterSectionTitle, { color: colors.text }]}>
+        Status
+      </Text>
       <View style={styles.filterButtonsContainer}>
         <TouchableOpacity
           style={[
             styles.filterStatusButton,
             focusedFilter === "FULFILLED" && styles.activeFilterButton,
-            { backgroundColor: focusedFilter === "FULFILLED" ? colors.primary : colors.card },
+            {
+              backgroundColor:
+                focusedFilter === "FULFILLED" ? colors.primary : colors.card,
+            },
           ]}
           onPress={() => filterByStatus("FULFILLED")}
         >
@@ -591,7 +654,10 @@ const ReservationsScreen = () => {
           style={[
             styles.filterStatusButton,
             focusedFilter === "SEATED" && styles.activeFilterButton,
-            { backgroundColor: focusedFilter === "SEATED" ? colors.primary : colors.card },
+            {
+              backgroundColor:
+                focusedFilter === "SEATED" ? colors.primary : colors.card,
+            },
           ]}
           onPress={() => filterByStatus("SEATED")}
         >
@@ -608,7 +674,10 @@ const ReservationsScreen = () => {
           style={[
             styles.filterStatusButton,
             focusedFilter === "APPROVED" && styles.activeFilterButton,
-            { backgroundColor: focusedFilter === "APPROVED" ? colors.primary : colors.card },
+            {
+              backgroundColor:
+                focusedFilter === "APPROVED" ? colors.primary : colors.card,
+            },
           ]}
           onPress={() => filterByStatus("APPROVED")}
         >
@@ -625,7 +694,10 @@ const ReservationsScreen = () => {
           style={[
             styles.filterStatusButton,
             focusedFilter === "CANCELED" && styles.activeFilterButton,
-            { backgroundColor: focusedFilter === "CANCELED" ? colors.primary : colors.card },
+            {
+              backgroundColor:
+                focusedFilter === "CANCELED" ? colors.primary : colors.card,
+            },
           ]}
           onPress={() => filterByStatus("CANCELED")}
         >
@@ -642,7 +714,10 @@ const ReservationsScreen = () => {
           style={[
             styles.filterStatusButton,
             focusedFilter === "PENDING" && styles.activeFilterButton,
-            { backgroundColor: focusedFilter === "PENDING" ? colors.primary : colors.card },
+            {
+              backgroundColor:
+                focusedFilter === "PENDING" ? colors.primary : colors.card,
+            },
           ]}
           onPress={() => filterByStatus("PENDING")}
         >
@@ -659,7 +734,10 @@ const ReservationsScreen = () => {
           style={[
             styles.filterStatusButton,
             focusedFilter === "NO_SHOW" && styles.activeFilterButton,
-            { backgroundColor: focusedFilter === "NO_SHOW" ? colors.primary : colors.card },
+            {
+              backgroundColor:
+                focusedFilter === "NO_SHOW" ? colors.primary : colors.card,
+            },
           ]}
           onPress={() => filterByStatus("NO_SHOW")}
         >
@@ -676,28 +754,43 @@ const ReservationsScreen = () => {
           style={[
             styles.filterStatusButton,
             focusedFilter === "" && !selectingDay && styles.activeFilterButton,
-            { backgroundColor: focusedFilter === "" && !selectingDay ? colors.primary : colors.card },
+            {
+              backgroundColor:
+                focusedFilter === "" && !selectingDay
+                  ? colors.primary
+                  : colors.card,
+            },
           ]}
           onPress={setDefaultFilter}
         >
           <Text
             style={{
-              color: focusedFilter === "" && !selectingDay ? "#fff" : colors.text,
+              color:
+                focusedFilter === "" && !selectingDay ? "#fff" : colors.text,
             }}
           >
             All
           </Text>
         </TouchableOpacity>
       </View>
-
       {/* Active Filters Display */}
       {focusedFilter || selectingDay ? (
         <View style={styles.activeFiltersContainer}>
-          <Text style={[styles.activeFiltersTitle, { color: colors.text }]}>Active Filters:</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersScroll}>
+          <Text style={[styles.activeFiltersTitle, { color: colors.text }]}>
+            Active Filters:
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.filtersScroll}
+          >
             {focusedFilter ? (
-              <View style={[styles.filterChip, { backgroundColor: colors.card }]}>
-                <Text style={{ color: colors.text }}>{getStatusLabel(focusedFilter)}</Text>
+              <View
+                style={[styles.filterChip, { backgroundColor: colors.card }]}
+              >
+                <Text style={{ color: colors.text }}>
+                  {getStatusLabel(focusedFilter)}
+                </Text>
                 <TouchableOpacity onPress={() => filterByStatus("")}>
                   <Feather name="x" size={16} color={colors.text} />
                 </TouchableOpacity>
@@ -705,12 +798,14 @@ const ReservationsScreen = () => {
             ) : null}
 
             {selectingDay ? (
-              <View style={[styles.filterChip, { backgroundColor: colors.card }]}>
+              <View
+                style={[styles.filterChip, { backgroundColor: colors.card }]}
+              >
                 <Text style={{ color: colors.text }}>{selectingDay}</Text>
                 <TouchableOpacity
                   onPress={() => {
-                    setSelectingDay("")
-                    setSelectedDateRange({ start: null, end: null })
+                    setSelectingDay("");
+                    setSelectedDateRange({ start: null, end: null });
                   }}
                 >
                   <Feather name="x" size={16} color={colors.text} />
@@ -720,12 +815,11 @@ const ReservationsScreen = () => {
           </ScrollView>
         </View>
       ) : null}
-
       {/* Reservations List */}
-      {isLoading ? (
+      {isLoadingData && reservations.length === 0 ? ( // Show main loader only if no data yet
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.text }]}>Loading reservations...</Text>
+          {/* <Text style={[styles.loadingText, { color: colors.text }]}>Loading reservations...</Text> */}
         </View>
       ) : (
         <FlatList
@@ -735,12 +829,13 @@ const ReservationsScreen = () => {
           contentContainerStyle={styles.listContainer}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={[styles.emptyText, { color: colors.text }]}>No reservations found</Text>
+              <Text style={[styles.emptyText, { color: colors.text }]}>
+                No reservations found
+              </Text>
             </View>
           }
         />
       )}
-
       {/* Pagination */}
       {count > 10 && (
         <View style={styles.paginationContainer}>
@@ -753,7 +848,6 @@ const ReservationsScreen = () => {
           />
         </View>
       )}
-
       {/* Add Reservation Modal */}
       {/* <Modal
         visible={showAddReservation}
@@ -769,47 +863,17 @@ const ReservationsScreen = () => {
                 <Feather name="x" size={24} color={colors.text} />
               </TouchableOpacity>
             </View> */}
-
-            <ScrollView style={styles.modalContent}>
-              <AddReservationModal
-                isVisible={showAddReservation}
-                onClose={() => setShowAddReservation(false)}
-                onSubmit={(newReservation) => {
-                  // Add the new reservation to the list
-                  // Ensure all required fields are present and not undefined
-                  const reservationToAdd: Reservation = {
-                    ...newReservation,
-                    email: newReservation.email ?? "",
-                    full_name: newReservation.full_name ?? "",
-                    phone: newReservation.phone ?? "",
-                    date: newReservation.date ?? "",
-                    time: newReservation.time ?? "",
-                    number_of_guests: newReservation.number_of_guests ?? "",
-                    status: newReservation.status ?? "PENDING",
-                    id: newReservation.id ?? `${Date.now()}`,
-                    // Ensure occasion is either undefined or an object of the correct shape
-                    occasion:
-                      newReservation.occasion && typeof newReservation.occasion === "object"
-                        ? newReservation.occasion
-                        : undefined,
-                  }
-                  setReservations((prev) => [
-                    ...prev,
-                    reservationToAdd,
-                  ])
-                  setFilteredReservations((prev) => [
-                    ...prev,
-                    reservationToAdd,
-                  ])
-                  setShowAddReservation(false)
-                }}
-                isDarkMode={isDarkMode}
-              />
-            </ScrollView>
-          {/* </View>
+      <ScrollView style={styles.modalContent}>
+        <AddReservationModal
+          isVisible={showAddReservation}
+          onClose={() => setShowAddReservation(false)}
+          onSubmit={handleAddReservationSubmit} // Updated to use the new handler
+          isDarkMode={isDarkMode}
+        />
+      </ScrollView>
+      {/* </View>
         </View>
       </Modal> */}
-
       {/* Filter Modal */}
       <Modal
         visible={showFilterModal}
@@ -818,49 +882,70 @@ const ReservationsScreen = () => {
         onRequestClose={() => setShowFilterModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContainer, { backgroundColor: colors.card }]}>
+          <View
+            style={[styles.modalContainer, { backgroundColor: colors.card }]}
+          >
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Filter Reservations</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Filter Reservations
+              </Text>
               <TouchableOpacity onPress={() => setShowFilterModal(false)}>
                 <Feather name="x" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.modalContent}>
-              
-
-              <Text style={[styles.filterSectionTitle, { color: colors.text }]}>Date</Text>
+              <Text style={[styles.filterSectionTitle, { color: colors.text }]}>
+                Date
+              </Text>
               <TouchableOpacity
-                style={[styles.datePickerButton, { backgroundColor: colors.card, borderColor: colors.border }]}
+                style={[
+                  styles.datePickerButton,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
                 onPress={() => {
-                  setShowFilterModal(false)
-                  setFocusedDate(true)
+                  setShowFilterModal(false);
+                  setFocusedDate(true);
                 }}
               >
                 <Feather name="calendar" size={20} color={colors.text} />
-                <Text style={[styles.datePickerButtonText, { color: colors.text }]}>
+                <Text
+                  style={[styles.datePickerButtonText, { color: colors.text }]}
+                >
                   {selectingDay || "Select Date Range"}
                 </Text>
               </TouchableOpacity>
 
-              <Text style={[styles.filterSectionTitle, { color: colors.text }]}>Columns</Text>
+              <Text style={[styles.filterSectionTitle, { color: colors.text }]}>
+                Columns
+              </Text>
               <TouchableOpacity
-                style={[styles.columnsButton, { backgroundColor: colors.card, borderColor: colors.border }]}
+                style={[
+                  styles.columnsButton,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
                 onPress={() => {
-                  setShowFilterModal(false)
-                  setShowColumnCustomization(true)
+                  setShowFilterModal(false);
+                  setShowColumnCustomization(true);
                 }}
               >
                 <Feather name="edit" size={20} color={colors.text} />
-                <Text style={[styles.columnsButtonText, { color: colors.text }]}>Customize Columns</Text>
+                <Text
+                  style={[styles.columnsButtonText, { color: colors.text }]}
+                >
+                  Customize Columns
+                </Text>
               </TouchableOpacity>
             </ScrollView>
 
             <TouchableOpacity
-              style={[styles.resetButton, { backgroundColor: colors.background }]}
+              style={[
+                styles.resetButton,
+                { backgroundColor: colors.background },
+              ]}
               onPress={() => {
-                setDefaultFilter()
-                setShowFilterModal(false)
+                setDefaultFilter();
+                setShowFilterModal(false);
               }}
             >
               <Text style={{ color: colors.text }}>Reset All Filters</Text>
@@ -868,7 +953,6 @@ const ReservationsScreen = () => {
           </View>
         </View>
       </Modal>
-
       {/* Date Selection Modal */}
       <Modal
         visible={focusedDate}
@@ -877,9 +961,16 @@ const ReservationsScreen = () => {
         onRequestClose={() => setFocusedDate(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.calendarModalContainer, { backgroundColor: colors.card }]}>
+          <View
+            style={[
+              styles.calendarModalContainer,
+              { backgroundColor: colors.card },
+            ]}
+          >
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Select Date Range</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Select Date Range
+              </Text>
               <TouchableOpacity onPress={() => setFocusedDate(false)}>
                 <Feather name="x" size={24} color={colors.text} />
               </TouchableOpacity>
@@ -892,7 +983,6 @@ const ReservationsScreen = () => {
           </View>
         </View>
       </Modal>
-
       {/* Column Customization Modal */}
       <ColumnCustomizationModal
         isVisible={showColumnCustomization}
@@ -901,32 +991,37 @@ const ReservationsScreen = () => {
         onSave={handleSaveColumns}
         isDarkMode={isDarkMode}
       />
-
-      {/* Edit Reservation Modal */}
+      /* Edit Reservation Modal */
       {selectedClient && (
         <EditReservationModal
           isVisible={showModal}
           reservation={selectedClient}
-          onClose={() => setShowModal(false)}
+          onClose={() => {
+            setShowModal(false);
+            // Clear reservation_id from route params
+            if (params.reservation_id) {
+              router.setParams({ reservation_id: undefined });
+            }
+          }}
           onSave={upDateHandler}
           reservationProgressData={reservationProgressData}
           setReservationProgressData={setReservationProgressData}
           isDarkMode={isDarkMode}
         />
       )}
-
       {/* Status Confirmation Modal */}
       <ActionConfirmation
         isVisible={showStatusConfirm}
         title="Change Reservation Status"
-        message={`Are you sure you want to change the status to ${getStatusLabel(pendingStatus)}?`}
+        message={`Are you sure you want to change the status to ${getStatusLabel(
+          pendingStatus
+        )}?`}
         confirmText="Confirm"
         cancelText="Cancel"
         onConfirm={confirmStatusUpdate}
         onCancel={() => setShowStatusConfirm(false)}
         isDarkMode={isDarkMode}
       />
-
       {/* Delete Confirmation Modal */}
       <ActionConfirmation
         isVisible={showDeleteConfirm}
@@ -940,7 +1035,7 @@ const ReservationsScreen = () => {
         isDarkMode={isDarkMode}
       />
     </SafeAreaView>
-  )
+  );
 }
 
 const styles = StyleSheet.create({

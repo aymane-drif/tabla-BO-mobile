@@ -5,8 +5,17 @@ import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native"
 import { Feather } from "@expo/vector-icons"
 import { Link } from "expo-router"
 import { useTheme } from "../Context/ThemeContext"
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native'; // Added useFocusEffect
+import { useState, useEffect, useCallback } from 'react'; // Added useState, useEffect, useCallback
+import { api as axiosInstance } from '../api/axiosInstance'; // Assuming this is the correct path
+import messaging from '@react-native-firebase/messaging'; // Import messaging
 
+// Define NotificationCount interface
+interface NotificationCount {
+  read: number;
+  total: number;
+  unread: number;
+}
 
 interface CustomHeaderProps {
   onTodayPress?: () => void
@@ -29,6 +38,52 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
         toggleTheme()
         
     }
+
+  const [notificationCount, setNotificationCount] = useState<NotificationCount>({ read: 0, total: 0, unread: 0 });
+
+  const fetchGlobalCounts = useCallback(async () => {
+    try {
+      const countResponse = await axiosInstance.get<NotificationCount>('/api/v1/notifications/count/');
+      const countData = countResponse.data || { read: 0, total: 0, unread: 0 };
+      setNotificationCount(countData);
+    } catch (err) {
+      console.error('Failed to fetch global notification counts:', err);
+      // Optionally set an error state for counts or use stale data
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchGlobalCounts(); // Initial fetch
+
+    // Listener for foreground FCM messages
+    const unsubscribe = messaging().onMessage(async remoteMessage => {
+      console.log('FCM Message received in foreground (CustomHeader):', remoteMessage);
+      // Assuming any new message could affect the count, so refetch.
+      fetchGlobalCounts();
+    });
+
+    return unsubscribe; // Unsubscribe on component unmount
+  }, [fetchGlobalCounts]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchGlobalCounts();
+      return () => {
+        // Optional: any cleanup actions
+      };
+    }, [fetchGlobalCounts])
+  );
+
+  useEffect(() => {
+    const unsubscribe = messaging().onMessage(async remoteMessage => {
+      console.log('FCM Message received in CustomHeader:', remoteMessage);
+      // Refresh notification count when a new message arrives
+      fetchGlobalCounts();
+    });
+
+    return unsubscribe; // Unsubscribe on unmount
+  }, [fetchGlobalCounts]);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.card }]}>
       {/* Logo */}
@@ -61,16 +116,13 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
             onPress={onNotificationPress}
           >
             <Feather name="bell" size={20} color={colors.text} />
-            {/* {unreadCount > 0 && (
-          // <View style={styles.badgeContainer}>
-          //   <Text style={styles.badgeText}>
-          //     {unreadCount > 9 ? '9+' : unreadCount}
-          //   </Text>
-          // </View>
-          )} */}
+            {notificationCount.unread > 0 && (
             <View style={styles.badgeContainer}>
-              <Text style={styles.badgeText}>9+</Text>
+              <Text style={styles.badgeText}>
+                {notificationCount.unread > 9 ? '9+' : notificationCount.unread}
+              </Text>
             </View>
+            )}
           </TouchableOpacity>
         </Link>
 
@@ -124,8 +176,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    height: 60,
+    paddingTop: 35, // Add status bar height and some extra padding
+    paddingBottom: 10, // Keep original bottom padding
   },
   logo: {
     width: 40,

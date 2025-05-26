@@ -69,22 +69,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Effect to update axios instance defaults when authState changes
   useEffect(() => {
-    if (authState.accessToken) {
-      api.defaults.headers.common['Authorization'] = `Bearer ${authState.accessToken}`;
-      console.log('[AuthContext] Set Authorization header:', api.defaults.headers.common['Authorization']);
-    } else {
-      delete api.defaults.headers.common['Authorization'];
-      console.log('[AuthContext] Removed Authorization header');
-    }
-    // Use restaurantId from user object if available, otherwise from authState directly
-    const currentRestaurantId = authState.user?.restaurantId || authState.restaurantId;
-    if (currentRestaurantId) {
-      api.defaults.headers.common['X-Restaurant-ID'] = currentRestaurantId;
-      console.log('[AuthContext] Set X-Restaurant-ID header:', api.defaults.headers.common['X-Restaurant-ID']);
-    } else {
-      delete api.defaults.headers.common['X-Restaurant-ID'];
-      console.log('[AuthContext] Removed X-Restaurant-ID header');
-    }
+    // if (authState.accessToken) {
+    //   api.defaults.headers.common['Authorization'] = `Bearer ${authState.accessToken}`;
+    //   console.log('[AuthContext] Set Authorization header:', api.defaults.headers.common['Authorization']);
+    // } else {
+    //   delete api.defaults.headers.common['Authorization'];
+    //   console.log('[AuthContext] Removed Authorization header');
+    // }
+    // // Use restaurantId from user object if available, otherwise from authState directly
+    // const currentRestaurantId = authState.user?.restaurantId || authState.restaurantId;
+    // if (currentRestaurantId) {
+    //   api.defaults.headers.common['X-Restaurant-ID'] = currentRestaurantId;
+    //   console.log('[AuthContext] Set X-Restaurant-ID header:', api.defaults.headers.common['X-Restaurant-ID']);
+    // } else {
+    //   delete api.defaults.headers.common['X-Restaurant-ID'];
+    //   console.log('[AuthContext] Removed X-Restaurant-ID header');
+    // }
   }, [authState.accessToken, authState.restaurantId, authState.user]);
 
   const registerDeviceForNotifications = async () => {

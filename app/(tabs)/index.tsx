@@ -30,6 +30,7 @@ import ActionConfirmation from "../../components/reservation/ActionConfirmation"
 import ColumnCustomizationModal from "../../components/reservation/ColumnCustomizationModal"
 import AddReservationModal from "@/components/reservation/AddReservationModal"
 import { ErrorBoundaryProps } from "expo-router"
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Types and Interfaces
 export interface ReceivedTables {
@@ -235,6 +236,19 @@ const ReservationsScreen = () => {
       const loadedColumns = await loadColumnsFromStorage()
       setColumns(loadedColumns)
     }
+    const loadSelectedDate = async () => {
+      try {
+        const storedDate = await AsyncStorage.getItem("selectedDate");
+        if (storedDate && !selectedDateRange.start && !selectedDateRange.end) {
+          const parsedDate = new Date(storedDate);
+          setSelectedDateRange({ start: parsedDate, end: parsedDate });
+          setSelectingDay(format(parsedDate, "dd/MM/yyyy"));
+        }
+      } catch (error) {
+        console.error("Error loading selected date from storage:", error);
+      }
+    };
+    loadSelectedDate();
     loadColumns()
   }, [])
 
@@ -255,21 +269,41 @@ const ReservationsScreen = () => {
       if (focusedFilter) {
         queryParams.append('status', focusedFilter);
       }
+      
+      // Handle date filtering logic
       if (selectedDateRange.start) {
         queryParams.append('date__gte', format(selectedDateRange.start, 'yyyy-MM-dd'));
       }
       if (selectedDateRange.end) {
         queryParams.append('date__lte', format(selectedDateRange.end, 'yyyy-MM-dd'));
       } else if (filterDate && !selectedDateRange.start) {
-        const today = new Date();
-        queryParams.append('date__gte', format(today, 'yyyy-MM-dd'));
-        queryParams.append('date__lte', format(today, 'yyyy-MM-dd'));
+        // If no date range is set but filterDate is true, try to use stored date
+        try {
+          const storedDate = await AsyncStorage.getItem("selectedDate");
+          if (storedDate) {
+            const dateToUse = format(new Date(storedDate), 'yyyy-MM-dd');
+            queryParams.append('date__gte', dateToUse);
+            queryParams.append('date__lte', dateToUse);
+          } else {
+            // Fallback to today if no stored date
+            const today = new Date();
+            queryParams.append('date__gte', format(today, 'yyyy-MM-dd'));
+            queryParams.append('date__lte', format(today, 'yyyy-MM-dd'));
+          }
+        } catch (error) {
+          console.error("Error reading stored date:", error);
+          // Fallback to today
+          const today = new Date();
+          queryParams.append('date__gte', format(today, 'yyyy-MM-dd'));
+          queryParams.append('date__lte', format(today, 'yyyy-MM-dd'));
+        }
       }
+      
       if (searchKeyWord) {
         queryParams.append('search', searchKeyWord);
       }
       queryParams.append('ordering', '-id'); 
-      // console.log("Fetching reservations with params:", queryParams.toString());
+      
       const response = await api.get(`/api/v1/bo/reservations/?${queryParams.toString()}`);
       
       setReservations(response.data.results || []);
@@ -790,10 +824,10 @@ const ReservationsScreen = () => {
         <TouchableOpacity
           style={[
             styles.filterStatusButton,
-            focusedFilter === "" && !selectingDay && styles.activeFilterButton,
+            focusedFilter === "" && !selectingDay && !filterDate && styles.activeFilterButton,
             {
               backgroundColor:
-                focusedFilter === "" && !selectingDay
+                focusedFilter === "" && !selectingDay && !filterDate
                   ? colors.primary
                   : colors.card,
             },
@@ -803,7 +837,7 @@ const ReservationsScreen = () => {
           <Text
             style={{
               color:
-                focusedFilter === "" && !selectingDay ? "#fff" : colors.text,
+                focusedFilter === "" && !selectingDay && !filterDate ? "#fff" : colors.text,
             }}
           >
             All
@@ -876,7 +910,7 @@ const ReservationsScreen = () => {
         />
       )}
       {/* Pagination */}
-      {count > 10 && (
+      {(count > 10 && !isLoadingData) && (
         <View style={styles.paginationContainer}>
           <Pagination
             setPage={setPage}
@@ -1030,7 +1064,7 @@ const ReservationsScreen = () => {
         onSave={handleSaveColumns}
         isDarkMode={isDarkMode}
       />
-      /* Edit Reservation Modal */
+      {/* Edit Reservation Modal */}
       {selectedClient && (
         <EditReservationModal
           isVisible={showModal}

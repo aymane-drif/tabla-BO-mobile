@@ -8,8 +8,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage'; // Import 
 // Register background handler
 // This handler must be registered outside of your component lifecycle,
 // typically in the entry file (index.js).
+console.log('Registering background message handler...');
+// This handler will be called when a notification is received while the app is in the background or killed state.
 messaging().setBackgroundMessageHandler(async remoteMessage => {
-  console.log('Message handled in the background!');
+  console.log('Message handled in the background!', remoteMessage);
 
   try {
     const { data, notification } = remoteMessage;

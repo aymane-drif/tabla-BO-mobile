@@ -3,12 +3,13 @@ import {AppRegistry} from 'react-native';
 import App from './App'; // Assuming your main App component is in App.js or App.tsx
 import {name as appName} from './app.json';
 import messaging from '@react-native-firebase/messaging';
+import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
 
 // Register background handler
 // This handler must be registered outside of your component lifecycle,
 // typically in the entry file (index.js).
 messaging().setBackgroundMessageHandler(async remoteMessage => {
-  console.log('Message handled in the background!', remoteMessage);
+  console.log('Message handled in the background!');
 
   try {
     const { data, notification } = remoteMessage;
@@ -33,8 +34,12 @@ messaging().setBackgroundMessageHandler(async remoteMessage => {
     // Example 2: Store data for later use when the app opens
     if (data && data.someImportantInfo) {
       console.log('Background: Storing important info:', data.someImportantInfo);
-      // TODO: Implement logic to store this data, e.g., using AsyncStorage.
-      // await AsyncStorage.setItem('backgroundNotificationData', JSON.stringify(data));
+      // Implement logic to store this data, e.g., using AsyncStorage.
+      await AsyncStorage.setItem('backgroundNotificationData', JSON.stringify({ 
+        someImportantInfo: data.someImportantInfo,
+        receivedAt: new Date().toISOString() 
+      }));
+      console.log('Background: Important info stored successfully.');
     }
 
     // Example 3: If you need to trigger a local notification from a data-only message
@@ -69,3 +74,4 @@ messaging().setBackgroundMessageHandler(async remoteMessage => {
 // in your main app logic (e.g., Notifications.tsx or a root component).
 
 AppRegistry.registerComponent(appName, () => App);
+

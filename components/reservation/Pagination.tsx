@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
   pagesContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginHorizontal: 8,
+    marginHorizontal: 3,
   },
   pageButton: {
     width: 32,
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
-    marginHorizontal: 4,
+    marginHorizontal: 3,
   },
 })
 

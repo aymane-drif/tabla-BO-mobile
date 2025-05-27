@@ -4,6 +4,7 @@ import React from "react"
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from "react-native"
 import { Feather } from "@expo/vector-icons"
 import { useRouter, usePathname } from "expo-router"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useTheme } from "../Context/ThemeContext"
 
 interface TabItem {
@@ -23,6 +24,7 @@ const CustomTabBar: React.FC<CustomTabBarProps> = ({ tabs }) => {
   const router = useRouter()
   const pathname = usePathname()
   const { colors, isDarkMode } = useTheme()
+  const insets = useSafeAreaInsets()
 
   const handleTabPress = (href: string) => {
     router.push(href as any)
@@ -36,6 +38,8 @@ const CustomTabBar: React.FC<CustomTabBarProps> = ({ tabs }) => {
           backgroundColor: colors.card,
           borderTopColor: colors.border,
           shadowColor: isDarkMode ? "transparent" : "#000",
+          paddingBottom: Math.max(insets.bottom, 10), // Ensure minimum padding
+          height: 76 + insets.bottom, // Add safe area to height
         },
       ]}
     >
@@ -52,7 +56,7 @@ const CustomTabBar: React.FC<CustomTabBarProps> = ({ tabs }) => {
               <View
                 style={[
                   styles.iconContainer,
-                  isActive && { backgroundColor: colors.primary + "20" ,borderRadius: 6},
+                  isActive && { backgroundColor: colors.primary + "20", borderRadius: 6 },
                 ]}
               >
                 <Feather
@@ -72,7 +76,6 @@ const CustomTabBar: React.FC<CustomTabBarProps> = ({ tabs }) => {
               >
                 {tab.label}
               </Text>
-              {/* {isActive && <View style={[styles.activeIndicator, { backgroundColor: colors.primary }]} />} */}
             </View>
           </TouchableOpacity>
         )
@@ -84,8 +87,6 @@ const CustomTabBar: React.FC<CustomTabBarProps> = ({ tabs }) => {
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
-    height: 76,
-    paddingBottom: 10,
     borderTopWidth: 1,
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.05,
@@ -96,6 +97,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    paddingTop: 10,
   },
   tabContent: {
     alignItems: "center",

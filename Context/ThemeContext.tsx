@@ -9,6 +9,7 @@ import { blue } from "react-native-reanimated/lib/typescript/Colors"
 const lightTheme = {
   primary: "#88AB61", // greentheme
   secondary: "#3F72AF", // bluetheme
+  white: "#f6f6f6", // whitetheme
   background: "#f6f6f6", // whitetheme
   card: "#fff", // softgreytheme
   text: "#1A1A1A", // blacktheme
@@ -29,6 +30,7 @@ const lightTheme = {
 const darkTheme = {
   primary: "#88AB61", // greentheme
   secondary: "#3F72AF", // bluetheme
+  white: "#fff", // textdarktheme
   background: "#031911", // bgdarktheme
   card: "#05291c", // darkthemeitems
   text: "#f5f4f2", // textdarktheme

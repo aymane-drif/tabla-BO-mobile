@@ -67,24 +67,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   };
 
+  useEffect(() => {
+    console.log('[AuthContext] Initializing AuthProvider',{authState, common: api.defaults.headers.common, axiosCommon: axios.defaults.headers.common});
+
+  }, []);
+
   // Effect to update axios instance defaults when authState changes
   useEffect(() => {
-    // if (authState.accessToken) {
-    //   api.defaults.headers.common['Authorization'] = `Bearer ${authState.accessToken}`;
-    //   console.log('[AuthContext] Set Authorization header:', api.defaults.headers.common['Authorization']);
-    // } else {
-    //   delete api.defaults.headers.common['Authorization'];
-    //   console.log('[AuthContext] Removed Authorization header');
-    // }
-    // // Use restaurantId from user object if available, otherwise from authState directly
-    // const currentRestaurantId = authState.user?.restaurantId || authState.restaurantId;
-    // if (currentRestaurantId) {
-    //   api.defaults.headers.common['X-Restaurant-ID'] = currentRestaurantId;
-    //   console.log('[AuthContext] Set X-Restaurant-ID header:', api.defaults.headers.common['X-Restaurant-ID']);
-    // } else {
-    //   delete api.defaults.headers.common['X-Restaurant-ID'];
-    //   console.log('[AuthContext] Removed X-Restaurant-ID header');
-    // }
+    if (authState.accessToken) {
+      api.defaults.headers.common['Authorization'] = `Bearer ${authState.accessToken}`;
+      console.log('[AuthContext] Set Authorization header:', api.defaults.headers.common['Authorization']);
+    } else {
+      delete api.defaults.headers.common['Authorization'];
+      console.log('[AuthContext] Removed Authorization header');
+    }
+    // Use restaurantId from user object if available, otherwise from authState directly
+    const currentRestaurantId = authState.user?.restaurantId || authState.restaurantId;
+    if (currentRestaurantId) {
+      api.defaults.headers.common['X-Restaurant-ID'] = currentRestaurantId;
+      console.log('[AuthContext] Set X-Restaurant-ID header:', api.defaults.headers.common['X-Restaurant-ID']);
+    } else {
+      delete api.defaults.headers.common['X-Restaurant-ID'];
+      console.log('[AuthContext] Removed X-Restaurant-ID header');
+    }
   }, [authState.accessToken, authState.restaurantId, authState.user]);
 
   const registerDeviceForNotifications = async () => {
@@ -287,12 +292,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           AsyncStorage.getItem(RESTAURANT_ID_KEY) // Legacy or direct restaurant ID
         ]);
 
+        // Set axios headers immediately when tokens are available
+        if (storedAccessToken) {
+          api.defaults.headers.common['Authorization'] = `Bearer ${storedAccessToken}`;
+          console.log('[AuthContext] Set Authorization header from storage:', api.defaults.headers.common['Authorization']);
+        }
+
         if (storedAccessToken && storedUserJson) {
           const storedUser: User = JSON.parse(storedUserJson);
+          const restaurantId = storedUser.restaurantId || storedRestaurantIdLegacy || null;
+          
+          // Set restaurant header immediately
+          if (restaurantId) {
+            api.defaults.headers.common['X-Restaurant-ID'] = restaurantId;
+            console.log('[AuthContext] Set X-Restaurant-ID header from storage:', api.defaults.headers.common['X-Restaurant-ID']);
+          }
+
           setAuthState({
             accessToken: storedAccessToken,
             refreshToken: storedRefreshToken,
-            restaurantId: storedUser.restaurantId || storedRestaurantIdLegacy || null, // Prioritize user.restaurantId
+            restaurantId: restaurantId,
             isAuthenticated: true,
             isLoading: false,
             user: storedUser,
@@ -300,6 +319,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // If user is authenticated from storage, ensure their device token is registered
           registerDeviceForNotifications();
         } else {
+          // Clear headers if no valid auth data
+          delete api.defaults.headers.common['Authorization'];
+          delete api.defaults.headers.common['X-Restaurant-ID'];
+          console.log('[AuthContext] Cleared headers - no valid auth data in storage');
+          
           setAuthState(prev => ({
             ...prev,
             accessToken: null,
@@ -312,6 +336,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (error) {
         console.error("Failed to load auth data from storage", error);
+        // Clear headers on error
+        delete api.defaults.headers.common['Authorization'];
+        delete api.defaults.headers.common['X-Restaurant-ID'];
+        
         setAuthState(prev => ({
           ...prev,
           accessToken: null,

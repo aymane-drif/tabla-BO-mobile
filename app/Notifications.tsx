@@ -158,6 +158,7 @@ const Notifications = () => {
 
     // Foreground messages
     const unsubscribeForeground = messaging().onMessage(async remoteMessage => {
+      console.log('FCM Message received in foreground:', remoteMessage);
       Alert.alert(
         remoteMessage.notification?.title || 'New Notification',
         remoteMessage.notification?.body,
@@ -170,6 +171,7 @@ const Notifications = () => {
 
     // Handle notification tap when app is in background
     const unsubscribeOpenedApp = messaging().onNotificationOpenedApp(remoteMessage => {
+      console.log('FCM Message received in foreground:', remoteMessage);
       // console.log('Notification caused app to open from background state:', remoteMessage);
       if (remoteMessage?.data?.reservation_id) {
         const reservationId = remoteMessage.data.reservation_id;

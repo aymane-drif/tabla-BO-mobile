@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native"
+import { View, Text, StyleSheet, TouchableOpacity, Image, AppState } from "react-native"
 import { Feather } from "@expo/vector-icons"
 import { Link } from "expo-router"
 import { useTheme } from "../Context/ThemeContext"
@@ -9,6 +9,8 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native'; // Add
 import { useState, useEffect, useCallback } from 'react'; // Added useState, useEffect, useCallback
 import { api as axiosInstance } from '../api/axiosInstance'; // Assuming this is the correct path
 import messaging from '@react-native-firebase/messaging'; // Import messaging
+import { format, isToday, isTomorrow, isValid, isYesterday } from "date-fns"
+import AsyncStorage from "@react-native-async-storage/async-storage"
 
 // Define NotificationCount interface
 interface NotificationCount {
@@ -40,7 +42,48 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
     }
 
   const [notificationCount, setNotificationCount] = useState<NotificationCount>({ read: 0, total: 0, unread: 0 });
+  const [selectedDateLabel, setSelectedDateLabel] = useState<string>("Today"); // State for date label
 
+  // Function to get smart date label
+  const getDateLabel = (dateString: string): string => {
+    try {
+      const selectedDate = new Date(dateString);
+
+      if (!isValid(selectedDate)) {
+        return "Today"; // Fallback to Today if invalid date
+      }
+
+      if (isToday(selectedDate)) {
+        return "Today";
+      } else if (isYesterday(selectedDate)) {
+        return "Yesterday";
+      } else if (isTomorrow(selectedDate)) {
+        return "Tomorrow";
+      } else {
+        // For other dates, show formatted date (e.g., "Dec 25" or "25/12")
+        return format(selectedDate, "MMM dd");
+      }
+    } catch (error) {
+      console.error("Error parsing date:", error);
+      return "Today"; // Fallback to Today
+    }
+  };
+
+  // Function to load selected date from AsyncStorage
+  const loadSelectedDate = useCallback(async () => {
+    try {
+      const storedDate = await AsyncStorage.getItem("selectedDate");
+      if (storedDate) {
+        const label = getDateLabel(storedDate);
+        setSelectedDateLabel(label);
+      } else {
+        setSelectedDateLabel("Today"); // Default to Today if no stored date
+      }
+    } catch (error) {
+      console.error("Error loading selected date from storage:", error);
+      setSelectedDateLabel("Today"); // Fallback to Today
+    }
+  }, []);
   const fetchGlobalCounts = useCallback(async () => {
     try {
       const countResponse = await axiosInstance.get<NotificationCount>('/api/v1/notifications/count/');
@@ -52,31 +95,66 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
     }
   }, []);
 
+  const handleTodayPress = useCallback(async () => {
+    try {
+      const today = new Date();
+      await AsyncStorage.setItem("selectedDate", today.toISOString());
+      setSelectedDateLabel("Today");
+      
+      // Call the original onTodayPress if provided
+      if (onTodayPress) {
+        onTodayPress();
+      }
+    } catch (error) {
+      console.error("Error setting today's date:", error);
+      // Still call the original function even if AsyncStorage fails
+      if (onTodayPress) {
+        onTodayPress();
+      }
+    }
+  }, [onTodayPress]);
+
   useEffect(() => {
     fetchGlobalCounts(); // Initial fetch
-
+    loadSelectedDate();
     // Listener for foreground FCM messages
     const unsubscribe = messaging().onMessage(async remoteMessage => {
-      console.log('FCM Message received in foreground (CustomHeader):');
+      console.log('FCM Message received in foreground (CustomHeader):', remoteMessage);
       // Assuming any new message could affect the count, so refetch.
       fetchGlobalCounts();
     });
 
     return unsubscribe; // Unsubscribe on component unmount
-  }, [fetchGlobalCounts]);
+  }, [fetchGlobalCounts, loadSelectedDate]);
 
   useFocusEffect(
     useCallback(() => {
       fetchGlobalCounts();
+      loadSelectedDate();
       return () => {
         // Optional: any cleanup actions
       };
-    }, [fetchGlobalCounts])
+    }, [fetchGlobalCounts, loadSelectedDate])
   );
+
+    useEffect(() => {
+    const handleAppStateChange = (nextAppState: string) => {
+      if (nextAppState === 'active') {
+        // App came to foreground, reload the date
+        loadSelectedDate();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    
+    return () => {
+      subscription?.remove();
+    };
+  }, [loadSelectedDate]);
 
   useEffect(() => {
     const unsubscribe = messaging().onMessage(async remoteMessage => {
-      console.log('FCM Message received in CustomHeader:');
+      console.log('FCM Message received in CustomHeader:',remoteMessage);
       // Refresh notification count when a new message arrives
       fetchGlobalCounts();
     });
@@ -96,9 +174,9 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
 
       <TouchableOpacity
         style={[styles.todayButton, { backgroundColor: colors.background, borderColor: colors.border }]}
-        onPress={onTodayPress}
+        onPress={handleTodayPress}
       >
-        <Text style={[styles.todayText, { color: colors.text }]}>Today</Text>
+        <Text style={[styles.todayText, { color: colors.text }]}>{selectedDateLabel}</Text>
       </TouchableOpacity>
 
       {/* Right Side Icons */}

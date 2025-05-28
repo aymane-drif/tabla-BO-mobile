@@ -965,27 +965,6 @@ const ReservationsScreen = () => {
                   {selectingDay || "Select Date Range"}
                 </Text>
               </TouchableOpacity>
-
-              <Text style={[styles.filterSectionTitle, { color: colors.text }]}>
-                Columns
-              </Text>
-              <TouchableOpacity
-                style={[
-                  styles.columnsButton,
-                  { backgroundColor: colors.card, borderColor: colors.border },
-                ]}
-                onPress={() => {
-                  setShowFilterModal(false);
-                  setShowColumnCustomization(true);
-                }}
-              >
-                <Feather name="edit" size={20} color={colors.text} />
-                <Text
-                  style={[styles.columnsButtonText, { color: colors.text }]}
-                >
-                  Customize Columns
-                </Text>
-              </TouchableOpacity>
             </ScrollView>
 
             <TouchableOpacity
@@ -1034,13 +1013,13 @@ const ReservationsScreen = () => {
         </View>
       </Modal>
       {/* Column Customization Modal */}
-      <ColumnCustomizationModal
+      {/* <ColumnCustomizationModal
         isVisible={showColumnCustomization}
         onClose={() => setShowColumnCustomization(false)}
         columns={columns}
         onSave={handleSaveColumns}
         isDarkMode={isDarkMode}
-      />
+      /> */}
       {/* Edit Reservation Modal */}
       {selectedClient && (
         <EditReservationModal

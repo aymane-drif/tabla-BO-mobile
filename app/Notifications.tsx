@@ -159,11 +159,6 @@ const Notifications = () => {
     // Foreground messages
     const unsubscribeForeground = messaging().onMessage(async remoteMessage => {
       console.log('FCM Message received in foreground:', remoteMessage);
-      Alert.alert(
-        remoteMessage.notification?.title || 'New Notification',
-        remoteMessage.notification?.body,
-        [{ text: 'OK' }]
-      );
       // console.log('A new FCM message arrived in foreground!', JSON.stringify(remoteMessage));
       // Refresh notification list and counts
       fetchAndRefresh();

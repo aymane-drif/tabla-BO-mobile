@@ -9,13 +9,13 @@ import CustomHeader from "@/components/CustomHeader"
 import CustomTabBar from "@/components/CustomTabBar"
 import CalendarModal from "@/components/calendar/CalendarModal"
 import ReservationProcess from "@/components/reservation/ReservationProcess"
-import AsyncStorage from "@react-native-async-storage/async-storage"
+import { SelectedDateProvider, useSelectedDate } from "@/Context/SelectedDateContext"
 
-export default function TabLayout() {
+function TabLayoutContent() {
   const colorScheme = useColorScheme()
   const [showCalendar, setShowCalendar] = useState(false)
   const [showReservationProcess, setShowReservationProcess] = useState(false)
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString())
+  const { selectedDate, setSelectedDate } = useSelectedDate() // selectedDate is "yyyy-MM-dd" string
 
   // Define tabs for our custom tab bar
   const tabs = [
@@ -51,16 +51,9 @@ export default function TabLayout() {
     // },
   ]
 
-  const handleDateSelect = async (date: string) => {
+  const handleDateSelect = (date: string) => {
     setSelectedDate(date)
-    console.log("Selected date:", date)
-    try {
-      // TODO: Consider using a more descriptive key for AsyncStorage
-      await AsyncStorage.setItem("selectedDate", date)
-    } catch (error) {
-      console.error("Failed to save selected date to AsyncStorage", error)
-    }
-    // You can use this date to filter reservations or navigate to a specific date view
+    console.log("Selected date (from context):", date)
   }
 
   const handleReservationComplete = (data: any) => {
@@ -80,7 +73,9 @@ export default function TabLayout() {
           header: () => (
             <CustomHeader
               onTodayPress={() => {
-                console.log("Today button pressed") // Add logging
+                // Log the selectedDate from context just before setShowCalendar
+                console.log("[_layout.tsx] onTodayPress: current selectedDate from context:", selectedDate);
+                console.log("[_layout.tsx] onTodayPress: showing calendar now.");
                 setShowCalendar(true)
               }}
               onNotificationPress={() => console.log("Notification pressed")}
@@ -131,13 +126,18 @@ export default function TabLayout() {
         />
       </Tabs>
 
-      {/* Calendar Modal - placed outside the Tabs component */}
-      <CalendarModal
-        isVisible={showCalendar}
-        onClose={() => setShowCalendar(false)}
-        onSelectDate={handleDateSelect}
-        initialDate={new Date(selectedDate)}
-      />
+      {/* Conditionally render CalendarModal to ensure it mounts fresh with new props */}
+      {showCalendar && (
+        <CalendarModal
+          // Key ensures re-mount if selectedDate changed since last time it was shown.
+          // isVisible prop is implicitly true when rendered here.
+          key={`calendar-modal-instance-${selectedDate}`}
+          isVisible={true} 
+          onClose={() => setShowCalendar(false)}
+          onSelectDate={handleDateSelect}
+          initialDate={selectedDate} 
+        />
+      )}
 
       {/* Reservation Process Modal
       {showReservationProcess && (
@@ -150,5 +150,13 @@ export default function TabLayout() {
         />
       )} */}
     </>
+  )
+}
+
+export default function TabLayout() {
+  return (
+    <SelectedDateProvider>
+      <TabLayoutContent />
+    </SelectedDateProvider>
   )
 }

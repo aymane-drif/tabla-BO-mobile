@@ -86,10 +86,6 @@ const SelectRestaurantScreen = () => {
       await updateRestaurantSelection(newRestaurantId); 
       // No need to set api.defaults here, AuthContext effect handles it
 
-      Alert.alert("Restaurant Selected", `${restaurant.name} has been selected.`, [
-        { text: "OK", onPress: () => router.replace('/(tabs)') }
-      ]);
-
     } catch (e) {
       console.error("Failed to select restaurant:", e);
       Alert.alert("Error", "Could not save restaurant selection.");

@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'; // Added useLocal
 import { api } from '../../api/axiosInstance'; // Assuming api is your configured axios instance
 import { Alert } from 'react-native'; // Added Alert
 import axios from 'axios'; // Added axios for type checking
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react" // Added useCallback
 import {
   View,
   Text,
@@ -30,7 +30,7 @@ import ActionConfirmation from "../../components/reservation/ActionConfirmation"
 import ColumnCustomizationModal from "../../components/reservation/ColumnCustomizationModal"
 import AddReservationModal from "@/components/reservation/AddReservationModal"
 import { ErrorBoundaryProps } from "expo-router"
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSelectedDate } from '@/Context/SelectedDateContext'; // Added
 
 // Types and Interfaces
 export interface ReceivedTables {
@@ -182,6 +182,8 @@ const ReservationsScreen = () => {
   const { isDarkMode, colors } = useTheme()
   const router = useRouter(); // For navigation if needed, or clearing params
   const params = useLocalSearchParams<{ reservation_id?: string }>(); // Get route params
+  const { selectedDate: contextSelectedDate } = useSelectedDate(); // Added: Get selected date from context
+
 
   // Column configuration
   const { loadColumnsFromStorage, saveColumnsToStorage } = useColumnConfiguration()
@@ -236,19 +238,19 @@ const ReservationsScreen = () => {
       const loadedColumns = await loadColumnsFromStorage()
       setColumns(loadedColumns)
     }
-    const loadSelectedDate = async () => {
-      try {
-        const storedDate = await AsyncStorage.getItem("selectedDate");
-        if (storedDate && !selectedDateRange.start && !selectedDateRange.end) {
-          const parsedDate = new Date(storedDate);
-          setSelectedDateRange({ start: parsedDate, end: parsedDate });
-          setSelectingDay(format(parsedDate, "dd/MM/yyyy"));
-        }
-      } catch (error) {
-        console.error("Error loading selected date from storage:", error);
-      }
-    };
-    loadSelectedDate();
+    // const loadSelectedDate = async () => { // Removed AsyncStorage logic
+    //   try {
+    //     const storedDate = await AsyncStorage.getItem("selectedDate");
+    //     if (storedDate && !selectedDateRange.start && !selectedDateRange.end) {
+    //       const parsedDate = new Date(storedDate);
+    //       setSelectedDateRange({ start: parsedDate, end: parsedDate });
+    //       setSelectingDay(format(parsedDate, "dd/MM/yyyy"));
+    //     }
+    //   } catch (error) {
+    //     console.error("Error loading selected date from storage:", error);
+    //   }
+    // };
+    // loadSelectedDate(); // Removed
     loadColumns()
   }, [])
 
@@ -259,46 +261,35 @@ const ReservationsScreen = () => {
 
   
   // API call to fetch reservations
-  const fetchReservations = async (showLoader = true) => {
+  const fetchReservations = useCallback(async (showLoader = true) => { // Wrapped with useCallback
     if (showLoader) setIsLoadingData(true);
     try {
       // Construct query parameters
       const queryParams = new URLSearchParams();
       queryParams.append('page', page.toString());
-      queryParams.append('page_size', '10'); 
+      queryParams.append('page_size', '10');
       if (focusedFilter) {
         queryParams.append('status', focusedFilter);
       }
-      
+
       // Handle date filtering logic
       if (selectedDateRange.start) {
         queryParams.append('date__gte', format(selectedDateRange.start, 'yyyy-MM-dd'));
       }
       if (selectedDateRange.end) {
         queryParams.append('date__lte', format(selectedDateRange.end, 'yyyy-MM-dd'));
-      } else if (filterDate && !selectedDateRange.start) {
-        // If no date range is set but filterDate is true, try to use stored date
-        try {
-          const storedDate = await AsyncStorage.getItem("selectedDate");
-          if (storedDate) {
-            const dateToUse = format(new Date(storedDate), 'yyyy-MM-dd');
-            queryParams.append('date__gte', dateToUse);
-            queryParams.append('date__lte', dateToUse);
-          } else {
-            // Fallback to today if no stored date
-            const today = new Date();
-            queryParams.append('date__gte', format(today, 'yyyy-MM-dd'));
-            queryParams.append('date__lte', format(today, 'yyyy-MM-dd'));
-          }
-        } catch (error) {
-          console.error("Error reading stored date:", error);
-          // Fallback to today
-          const today = new Date();
-          queryParams.append('date__gte', format(today, 'yyyy-MM-dd'));
-          queryParams.append('date__lte', format(today, 'yyyy-MM-dd'));
-        }
+      } else if (filterDate && !selectedDateRange.start && contextSelectedDate) { // Use contextSelectedDate
+        // If no date range is set but filterDate is true, use context selected date
+        const dateToUse = format(new Date(contextSelectedDate), 'yyyy-MM-dd');
+        queryParams.append('date__gte', dateToUse);
+        queryParams.append('date__lte', dateToUse);
+      } else if (filterDate && !selectedDateRange.start && !contextSelectedDate) {
+        // Fallback to today if no context date and no range
+        const today = new Date();
+        queryParams.append('date__gte', format(today, 'yyyy-MM-dd'));
+        queryParams.append('date__lte', format(today, 'yyyy-MM-dd'));
       }
-      
+
       if (searchKeyWord) {
         queryParams.append('search', searchKeyWord);
       }
@@ -324,12 +315,12 @@ const ReservationsScreen = () => {
     } finally {
       if (showLoader) setIsLoadingData(false);
     }
-  };
+  }, [page, focusedFilter, selectedDateRange, searchKeyWord, filterDate, contextSelectedDate, setIsLoadingData, setReservations, setFilteredReservations, setCount]); // Added dependencies
   
   // Fetch reservations on initial load and when dependencies change
   useEffect(() => {
     fetchReservations();
-  }, [page, focusedFilter, selectedDateRange, searchKeyWord, filterDate]);
+  }, [fetchReservations]); // Simplified to just fetchReservations
 
   // Effect to handle reservation_id from route params
   useEffect(() => {
@@ -386,10 +377,13 @@ const ReservationsScreen = () => {
       setSelectingDay(`${formattedStart} - ${formattedEnd}`)
     } else if (selectedDateRange.start) {
       setSelectingDay(format(selectedDateRange.start, "dd/MM/yyyy"))
-    } else {
+    } else if (contextSelectedDate && filterDate) { // Initialize selectingDay from context if filterDate is true
+        setSelectingDay(format(new Date(contextSelectedDate), "dd/MM/yyyy"));
+    }
+     else {
       setSelectingDay("")
     }
-  }, [selectedDateRange])
+  }, [selectedDateRange, contextSelectedDate, filterDate])
 
   // Effect to update reservation progress data when client changes
   useEffect(() => {
@@ -450,7 +444,6 @@ const ReservationsScreen = () => {
       setShowAddReservation(false);
       await fetchReservations(); // Refresh list and update count
 
-      Alert.alert("Success", "Reservation created successfully.");
 
     } catch (error) {
       console.error("Error creating reservation:", error);
@@ -481,22 +474,8 @@ const ReservationsScreen = () => {
   const searchFilter = (text: string): void => {
     const keyword = text.toLowerCase()
     setSearchKeyWord(keyword)
-
-    // Filter reservations based on keyword
-    if (keyword) {
-      const filtered = reservations.filter(
-        (reservation) =>
-          reservation.full_name.toLowerCase().includes(keyword) ||
-          reservation.email.toLowerCase().includes(keyword) ||
-          reservation.phone.includes(keyword) ||
-          (reservation.seq_id && reservation.seq_id.includes(keyword)),
-      )
-      setFilteredReservations(filtered)
-      setSearched(true)
-    } else {
-      setFilteredReservations(reservations)
-      setSearched(false)
-    }
+    setPage(1) // Reset to first page when searching
+    // fetchReservations will be triggered by the useEffect that watches searchKeyWord
   }
 
   const EditClient = (id: string): void => {
@@ -547,7 +526,6 @@ const ReservationsScreen = () => {
       
       setShowModal(false);
       setEditingClient(undefined);
-      Alert.alert("Success", "Reservation updated successfully.");
       await fetchReservations(true); // Refetch reservations without main loader
     } catch (error) {
       console.error("Error updating reservation:", error);
@@ -607,7 +585,6 @@ const ReservationsScreen = () => {
       await api.delete(`/api/v1/bo/reservations/${id}/`);
       
       setShowDeleteConfirm(false); // Close the confirmation modal first
-      Alert.alert("Success", "Reservation deleted successfully.");
       
       // Refresh the list of reservations. 
       // fetchReservations(true) will show a loader and update the list.

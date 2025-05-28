@@ -1,49 +1,47 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useMemo } from "react" // Added useMemo
+import { useState, useEffect, useMemo } from "react"
 import { View, Text, Modal, StyleSheet, TouchableOpacity, Dimensions } from "react-native"
 import { useTheme } from "../../Context/ThemeContext"
-// import Calendar from "../Calendar" // Removed custom calendar
-import { Calendar as ReactNativeCalendar, DateData } from "react-native-calendars" // Added react-native-calendars
-import { format, startOfToday, parseISO, getMonth, getYear, getDate, isSameDay } from "date-fns" // Added parseISO, getMonth, getYear, getDate
+import { Calendar as ReactNativeCalendar, DateData } from "react-native-calendars"
+import { format, startOfToday, parseISO, getMonth, getYear, getDate, isSameDay } from "date-fns"
 import { Feather } from "@expo/vector-icons"
 
 interface CalendarModalProps {
-  isVisible: boolean
+  isVisible: boolean // Will be true when rendered due to parent's conditional rendering
   onClose: () => void
-  onSelectDate?: (date: string) => void // Changed to string
-  initialDate?: Date
-  availableDays?: { day: number; isAvailable: boolean }[] // Keep this prop as is for now
-  loading?: boolean // Prop to indicate if availableDays are loading
-  forbidden?: boolean // Prop to disable past dates
+  onSelectDate?: (date: string) => void
+  initialDate?: string 
+  availableDays?: { day: number; isAvailable: boolean }[]
+  loading?: boolean
+  forbidden?: boolean
 }
 
 const { height } = Dimensions.get("window")
 
 const CalendarModal: React.FC<CalendarModalProps> = ({
-  isVisible,
+  isVisible, // This prop is true when the component is mounted by the parent
   onClose,
   onSelectDate,
-  initialDate = startOfToday(),
+  initialDate = format(startOfToday(), "yyyy-MM-dd"), 
   availableDays = [],
   loading = false,
   forbidden = false,
 }) => {
   const { colors, isDarkMode } = useTheme()
   
-  const [selectedDateString, setSelectedDateString] = useState<string>(format(initialDate, "yyyy-MM-dd"))
-  const [currentDisplayMonth, setCurrentDisplayMonth] = useState<string>(format(initialDate, "yyyy-MM-dd"))
-  // isLoading state is now controlled by the 'loading' prop for external data fetching simulation
-  // const [isLoading, setIsLoading] = useState(false) // Use prop 'loading' instead
+  // These states will be initialized with the fresh initialDate prop on each mount
+  const [selectedDateString, setSelectedDateString] = useState<string>(initialDate)
+  const [currentDisplayMonth, setCurrentDisplayMonth] = useState<string>(initialDate)
 
+  // This useEffect runs on mount (as isVisible is true) and if initialDate prop were to change
+  // while mounted (though re-mounting is the primary mechanism now for prop updates).
   useEffect(() => {
-    if (isVisible) {
-      const formattedInitialDate = format(initialDate, "yyyy-MM-dd");
-      setSelectedDateString(formattedInitialDate);
-      setCurrentDisplayMonth(formattedInitialDate);
-    }
-  }, [isVisible, initialDate]);
+    console.log("[CalendarModal] Component mounted/props updated. Received initialDate prop:", initialDate);
+    setSelectedDateString(initialDate);
+    setCurrentDisplayMonth(initialDate);
+  }, [initialDate]); // Depend on initialDate; isVisible is handled by mount/unmount
 
   // This mock function simulates fetching/updating availableDays when month changes
   // In a real app, this would call an API and update the `availableDays` prop from parent
@@ -61,8 +59,19 @@ const CalendarModal: React.FC<CalendarModalProps> = ({
     const todayStr = format(startOfToday(), "yyyy-MM-dd");
 
     // Process availableDays for the currentDisplayMonth
-    const year = getYear(parseISO(currentDisplayMonth));
-    const month = getMonth(parseISO(currentDisplayMonth)) + 1; // date-fns month is 0-indexed
+    // Ensure currentDisplayMonth is a valid date string before parsing
+    let year = getYear(startOfToday());
+    let month = getMonth(startOfToday()) + 1;
+    try {
+        if (currentDisplayMonth && parseISO(currentDisplayMonth)) {
+            year = getYear(parseISO(currentDisplayMonth));
+            month = getMonth(parseISO(currentDisplayMonth)) + 1; // date-fns month is 0-indexed
+        }
+    } catch (e) {
+        console.error("Error parsing currentDisplayMonth for markedDates:", currentDisplayMonth, e);
+        // Fallback to today's year/month or handle error appropriately
+    }
+
 
     availableDays.forEach(ad => {
       const dayStr = ad.day < 10 ? `0${ad.day}` : String(ad.day);
@@ -160,6 +169,8 @@ const CalendarModal: React.FC<CalendarModalProps> = ({
 
           <View style={styles.calendarContainer}>
             <ReactNativeCalendar
+              // Key ensures the internal calendar also re-initializes if the display month needs to change.
+              key={`rn-calendar-${currentDisplayMonth}`} 
               current={currentDisplayMonth}
               onDayPress={handleDayPress}
               markedDates={markedDates}
@@ -167,7 +178,7 @@ const CalendarModal: React.FC<CalendarModalProps> = ({
               monthFormat={"MMMM yyyy"}
               theme={calendarTheme}
               minDate={forbidden ? format(startOfToday(), "yyyy-MM-dd") : undefined}
-              displayLoadingIndicator={loading} // Use the loading prop
+              displayLoadingIndicator={loading}
               hideExtraDays={true}
               style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 8 }}
             />

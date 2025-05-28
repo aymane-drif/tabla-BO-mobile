@@ -56,7 +56,6 @@ function ChangePasswordModal({
       })
 
       if (response.status === 200 || response.status === 201) {
-        Alert.alert("Success", "Password changed successfully")
         setCurrentPassword("")
         setNewPassword("")
         setConfirmPassword("")

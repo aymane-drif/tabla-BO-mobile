@@ -5,12 +5,12 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, AppState } from "react
 import { Feather } from "@expo/vector-icons"
 import { Link } from "expo-router"
 import { useTheme } from "../Context/ThemeContext"
-import { useNavigation, useFocusEffect } from '@react-navigation/native'; // Added useFocusEffect
-import { useState, useEffect, useCallback } from 'react'; // Added useState, useEffect, useCallback
-import { api as axiosInstance } from '../api/axiosInstance'; // Assuming this is the correct path
-import messaging from '@react-native-firebase/messaging'; // Import messaging
-import { format, isToday, isTomorrow, isValid, isYesterday } from "date-fns"
-import AsyncStorage from "@react-native-async-storage/async-storage"
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useState, useEffect, useCallback } from 'react';
+import { api as axiosInstance } from '../api/axiosInstance';
+import messaging from '@react-native-firebase/messaging';
+import { format, isToday, isTomorrow, isValid, isYesterday, parseISO } from "date-fns" // Added parseISO
+import { useSelectedDate } from "@/Context/SelectedDateContext" // Added
 
 // Define NotificationCount interface
 interface NotificationCount {
@@ -42,48 +42,46 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
     }
 
   const [notificationCount, setNotificationCount] = useState<NotificationCount>({ read: 0, total: 0, unread: 0 });
-  const [selectedDateLabel, setSelectedDateLabel] = useState<string>("Today"); // State for date label
+  const [selectedDateLabel, setSelectedDateLabel] = useState<string>("Today");
+  const { selectedDate, setSelectedDate: setSelectedDateContext } = useSelectedDate(); // Use context
 
   // Function to get smart date label
   const getDateLabel = (dateString: string): string => {
     try {
-      const selectedDate = new Date(dateString);
+      const dateToParse = dateString.includes('T') ? dateString : `${dateString}T00:00:00`; // Ensure it's a full ISO string if only date part
+      const currentDate = parseISO(dateToParse);
 
-      if (!isValid(selectedDate)) {
+
+      if (!isValid(currentDate)) {
         return "Today"; // Fallback to Today if invalid date
       }
 
-      if (isToday(selectedDate)) {
+      if (isToday(currentDate)) {
         return "Today";
-      } else if (isYesterday(selectedDate)) {
+      } else if (isYesterday(currentDate)) {
         return "Yesterday";
-      } else if (isTomorrow(selectedDate)) {
+      } else if (isTomorrow(currentDate)) {
         return "Tomorrow";
       } else {
         // For other dates, show formatted date (e.g., "Dec 25" or "25/12")
-        return format(selectedDate, "MMM dd");
+        return format(currentDate, "MMM dd");
       }
     } catch (error) {
-      console.error("Error parsing date:", error);
+      console.error("Error parsing date for label:", error, "Date string:", dateString);
       return "Today"; // Fallback to Today
     }
   };
 
-  // Function to load selected date from AsyncStorage
-  const loadSelectedDate = useCallback(async () => {
-    try {
-      const storedDate = await AsyncStorage.getItem("selectedDate");
-      if (storedDate) {
-        const label = getDateLabel(storedDate);
-        setSelectedDateLabel(label);
-      } else {
-        setSelectedDateLabel("Today"); // Default to Today if no stored date
-      }
-    } catch (error) {
-      console.error("Error loading selected date from storage:", error);
-      setSelectedDateLabel("Today"); // Fallback to Today
+  // Update date label when selectedDate from context changes
+  useEffect(() => {
+    if (selectedDate) {
+      setSelectedDateLabel(getDateLabel(selectedDate));
+    } else {
+      setSelectedDateLabel("Today"); // Default if context date is somehow null/undefined
     }
-  }, []);
+  }, [selectedDate]);
+
+
   const fetchGlobalCounts = useCallback(async () => {
     try {
       const countResponse = await axiosInstance.get<NotificationCount>('/api/v1/notifications/count/');
@@ -98,8 +96,9 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
   const handleTodayPress = useCallback(async () => {
     try {
       const today = new Date();
-      await AsyncStorage.setItem("selectedDate", today.toISOString());
-      setSelectedDateLabel("Today");
+      // await AsyncStorage.setItem("selectedDate", today.toISOString()); // Removed
+      setSelectedDateContext(format(today, "yyyy-MM-dd")); // Update context
+      // setSelectedDateLabel("Today"); // Label will update via useEffect
       
       // Call the original onTodayPress if provided
       if (onTodayPress) {
@@ -107,16 +106,16 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
       }
     } catch (error) {
       console.error("Error setting today's date:", error);
-      // Still call the original function even if AsyncStorage fails
+      // Still call the original function even if context update fails
       if (onTodayPress) {
         onTodayPress();
       }
     }
-  }, [onTodayPress]);
+  }, [onTodayPress, setSelectedDateContext]);
 
   useEffect(() => {
     fetchGlobalCounts(); // Initial fetch
-    loadSelectedDate();
+    // loadSelectedDate(); // Removed
     // Listener for foreground FCM messages
     const unsubscribe = messaging().onMessage(async remoteMessage => {
       console.log('FCM Message received in foreground (CustomHeader):', remoteMessage);
@@ -125,23 +124,23 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
     });
 
     return unsubscribe; // Unsubscribe on component unmount
-  }, [fetchGlobalCounts, loadSelectedDate]);
+  }, [fetchGlobalCounts]); // Removed loadSelectedDate dependency
 
   useFocusEffect(
     useCallback(() => {
       fetchGlobalCounts();
-      loadSelectedDate();
+      // loadSelectedDate(); // Removed
       return () => {
         // Optional: any cleanup actions
       };
-    }, [fetchGlobalCounts, loadSelectedDate])
+    }, [fetchGlobalCounts]) // Removed loadSelectedDate dependency
   );
 
     useEffect(() => {
     const handleAppStateChange = (nextAppState: string) => {
       if (nextAppState === 'active') {
-        // App came to foreground, reload the date
-        loadSelectedDate();
+        // App came to foreground, reload the date - No longer needed as context handles reactivity
+        // loadSelectedDate(); // Removed
       }
     };
 
@@ -150,7 +149,7 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
     return () => {
       subscription?.remove();
     };
-  }, [loadSelectedDate]);
+  }, []); // Removed loadSelectedDate dependency
 
   useEffect(() => {
     const unsubscribe = messaging().onMessage(async remoteMessage => {

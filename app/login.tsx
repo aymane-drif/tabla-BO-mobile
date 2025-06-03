@@ -8,8 +8,8 @@ import { DarkTheme, DefaultTheme } from '@react-navigation/native'; // For theme
 import { useTheme } from '@/Context/ThemeContext';
 
 const LoginScreen = () => {
-  const [email, setEmail] = useState('tester@test.com');
-  const [password, setPassword] = useState('123456@@@');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const { login, isLoading, isAuthenticated, user } = useAuth();
   const router = useRouter();
   const colorScheme = useColorScheme();

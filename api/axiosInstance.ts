@@ -4,7 +4,7 @@ import { router } from 'expo-router'; // Import router for navigation
 
 // Create an instance of axios
 const api = axios.create({
-  baseURL: 'https://api.dev.tabla.ma', // Replace with your API's base URL
+  baseURL: 'https://api.tabla.ma', // Replace with your API's base URL
   withCredentials: true, // This is important for CORS and cookies
   headers: {
     'Content-Type': 'application/json',

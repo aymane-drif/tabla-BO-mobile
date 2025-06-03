@@ -228,7 +228,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      const response = await axios.post("https://api.dev.tabla.ma/api/auth/token/refresh", { refresh: currentRefreshToken });
+      const response = await axios.post("/api/auth/token/refresh/", { refresh: currentRefreshToken });
       const { access: newAccessToken, refresh: newRefreshedToken } = response.data; // Assuming 'access' and 'refresh'
 
       if (!newAccessToken) {

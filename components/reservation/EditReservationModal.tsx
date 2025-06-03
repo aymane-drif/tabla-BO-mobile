@@ -278,18 +278,22 @@ const EditReservationModal = ({
       </View>
 
       {/* Tags */}
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>Tags</Text>
-      <View style={styles.tagsContainer}>
-        {selectedClient?.tags?.map((tag, index) => (
-          <View key={index} style={[styles.tag, { backgroundColor: colors.success + "20" }]}>
-            <Text style={[styles.tagText, { color: colors.success }]}>{tag}</Text>
+      {selectedClient?.tags?.length && 
+        <>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Tags</Text>
+          <View style={styles.tagsContainer}>
+            {selectedClient?.tags?.map((tag, index) => (
+              <View key={index} style={[styles.tag, { backgroundColor: colors.success + "20" }]}>
+                <Text style={[styles.tagText, { color: colors.success }]}>{tag}</Text>
+              </View>
+            ))}
           </View>
-        ))}
-      </View>
+        </>
+      }
 
       {/* Client preferences */}
+      <Text style={[styles.cardTitle, { color: colors.text }]}>{selectedClient?.full_name}'s preferences</Text>
       <View style={[styles.preferencesCard, { backgroundColor: colors.card }]}>
-        <Text style={[styles.cardTitle, { color: colors.text }]}>{selectedClient?.full_name}'s preferences</Text>
 
         <View style={styles.preferenceItem}>
           <Text style={[styles.preferenceLabel, { color: colors.subtext }]}>Allergies</Text>
@@ -422,6 +426,7 @@ const EditReservationModal = ({
         </Text>
 
         {/* Tags */}
+        {selectedClient?.tags?.length && <> 
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Tags</Text>
         <View style={styles.tagsContainer}>
           {selectedClient?.tags?.map((tag, index) => (
@@ -430,10 +435,12 @@ const EditReservationModal = ({
             </View>
           ))}
         </View>
+        </>
+        }
 
+        <Text style={[styles.cardTitle, { color: colors.text }]}>{selectedClient?.full_name}'s preferences</Text>
         {/* Client preferences */}
         <View style={[styles.preferencesCard, { backgroundColor: colors.card }]}>
-          <Text style={[styles.cardTitle, { color: colors.text }]}>{selectedClient?.full_name}'s preferences</Text>
 
           {/* Cancellation info if applicable */}
           {selectedClient?.status === "CANCELED" && (
@@ -988,15 +995,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 20, // Increased margin
   },
   title: {
-    fontSize: 24,
+    fontSize: 26, // Increased font size
     fontWeight: "bold",
   },
   reservationId: {
     fontSize: 14,
-    marginBottom: 16,
+    marginBottom: 20, // Increased margin
+    marginTop: -8, // Adjust if needed to bring closer to header or further from next element
   },
   sectionTitle: {
     fontSize: 16,
@@ -1022,12 +1030,12 @@ const styles = StyleSheet.create({
   preferencesCard: {
     padding: 16,
     borderRadius: 12,
-    marginBottom: 16,
+    marginBottom: 20, // Increased margin
   },
   cardTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 12,
+    fontSize: 18, // Increased font size
+    fontWeight: "bold", // Ensured bold
+    marginBottom: 16, // Increased margin
   },
   preferenceItem: {
     marginBottom: 12,

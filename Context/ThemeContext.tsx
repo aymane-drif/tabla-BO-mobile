@@ -14,6 +14,7 @@ const lightTheme = {
   card: "#fff", // softgreytheme
   text: "#1A1A1A", // blacktheme
   subtext: "#1E1E1E80", // subblack
+  textMuted: "#6c757d", // textMuted for light theme
   border: "#E1E1E1",
   notification: "#FF4B4B", // redtheme
   success: "#88AB61", // greentheme
@@ -35,6 +36,7 @@ const darkTheme = {
   card: "#05291c", // darkthemeitems
   text: "#f5f4f2", // textdarktheme
   subtext: "#ffffff77", // softwhitetheme
+  textMuted: "#adb5bd", // textMuted for dark theme
   border: "#042117", // bgdarktheme2
   notification: "#FF4B4B", // redtheme
   success: "#88AB61", // greentheme
@@ -84,3 +86,4 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
 // Custom hook to use the theme
 export const useTheme = () => useContext(ThemeContext)
+

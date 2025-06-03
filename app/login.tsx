@@ -1,7 +1,20 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Image, useColorScheme } from 'react-native';
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  StyleSheet, 
+  ActivityIndicator, 
+  Alert, 
+  Image, 
+  useColorScheme,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView 
+} from 'react-native';
 import { useAuth } from '@/Context/AuthContext';
 import { useRouter, Stack } from 'expo-router';
 import { DarkTheme, DefaultTheme } from '@react-navigation/native'; // For theme colors
@@ -60,63 +73,101 @@ const LoginScreen = () => {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen options={{ headerShown: false }} />
-      {/* You can add your logo here */}
-      <Image source={require('../assets/images/LOGO.png')} style={styles.logo} resizeMode="contain" />
-      
-      <Text style={[styles.title, { color: colors.text }]}>Welcome Back!</Text>
-      <Text style={[styles.subtitle, { color: colors.text }]}>Sign in to continue</Text>
-      
-      <TextInput
-        style={[
-          styles.input,
-          { 
-            backgroundColor: colors.card, 
-            color: colors.text, 
-            borderColor: colors.border 
-          }
-        ]}
-        placeholder="Email"
-        placeholderTextColor={colorScheme === 'dark' ? '#888' : '#AAA'}
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-      <TextInput
-        style={[
-          styles.input,
-          { 
-            backgroundColor: colors.card, 
-            color: colors.text, 
-            borderColor: colors.border 
-          }
-        ]}
-        placeholder="Password"
-        placeholderTextColor={colorScheme === 'dark' ? '#888' : '#AAA'}
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-      <TouchableOpacity 
-        style={[styles.button, { backgroundColor: colors.primary }]} 
-        onPress={handleLogin} 
-        disabled={isLoading}
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0} 
+    >
+      <ScrollView
+        contentContainerStyle={[styles.scrollContainer, { backgroundColor: colors.background }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.buttonText, { color: colorScheme === 'dark' ? '#FFFFFF' : '#FFFFFF'}]}>
-          {isLoading ? "Logging in..." : "Login"}
-        </Text>
-      </TouchableOpacity>
-    </View>
+        <View style={styles.innerContainer}>
+          <Stack.Screen options={{ headerShown: false }} />
+          <Image source={require('../assets/images/LOGO.png')} style={styles.logo} resizeMode="contain" />
+          
+          <Text style={[styles.title, { color: colors.text }]}>Welcome Back!</Text>
+          <Text style={[styles.subtitle, { color: colors.text }]}>Sign in to continue</Text>
+          
+          <TextInput
+            style={[
+              styles.input,
+              { 
+                backgroundColor: colors.card, 
+                color: colors.text, 
+                borderColor: colors.border 
+              }
+            ]}
+            placeholder="Email"
+            placeholderTextColor={colorScheme === 'dark' ? '#888' : '#AAA'}
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+          <TextInput
+            style={[
+              styles.input,
+              { 
+                backgroundColor: colors.card, 
+                color: colors.text, 
+                borderColor: colors.border 
+              }
+            ]}
+            placeholder="Password"
+            placeholderTextColor={colorScheme === 'dark' ? '#888' : '#AAA'}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
+          <TouchableOpacity 
+            style={[styles.button, { backgroundColor: colors.primary }]} 
+            onPress={handleLogin} 
+            disabled={isLoading}
+          >
+            <Text style={[styles.buttonText, { color: colorScheme === 'dark' ? '#FFFFFF' : '#FFFFFF'}]}>
+              {isLoading ? "Logging in..." : "Login"}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.linkContainer}
+            onPress={() => Alert.alert('Forgot Password', 'Forgot password functionality to be implemented.')}
+          >
+            <Text style={[styles.linkText, { color: colors.primary }]}>Forgot Password?</Text>
+          </TouchableOpacity>
+
+          <View style={styles.footerLinksContainer}>
+            <TouchableOpacity onPress={() => Alert.alert("Terms of Service", "Navigate to Terms of Service.")}>
+              <Text style={[styles.footerLinkText, { color: colors.textMuted }]}>Terms of Service</Text>
+            </TouchableOpacity>
+            <Text style={[styles.footerLinkSeparator, { color: colors.textMuted }]}> | </Text>
+            <TouchableOpacity onPress={() => Alert.alert("Privacy Policy", "Navigate to Privacy Policy.")}>
+              <Text style={[styles.footerLinkText, { color: colors.textMuted }]}>Privacy Policy</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  scrollContainer: { // Renamed from container to avoid conflict, applied to ScrollView's contentContainerStyle
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  innerContainer: { // New container for the content itself to manage width and alignment
+    width: '100%',
+    alignItems: 'center', // Center logo, title, etc.
+  },
+  container: { // Kept for the loading state, or can be merged/removed if scrollContainer covers all uses
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center', // Center content horizontally
+    alignItems: 'center', 
     padding: 20,
   },
   logo: {
@@ -165,6 +216,30 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     fontSize: 16,
+  },
+  linkContainer: {
+    marginTop: 15,
+    alignItems: 'center',
+  },
+  linkText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  footerLinksContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 30, // Pushes it further down
+    paddingBottom: 10, // Ensure it's not cut off at the very bottom
+  },
+  footerLinkText: {
+    fontSize: 12,
+    opacity: 0.8,
+  },
+  footerLinkSeparator: {
+    fontSize: 12,
+    marginHorizontal: 5,
+    opacity: 0.8,
   }
 });
 

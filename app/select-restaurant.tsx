@@ -10,7 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Feather } from '@expo/vector-icons'; // Added Feather
 import { useAuth } from '@/Context/AuthContext';
 import { api } from '@/api/axiosInstance';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -36,9 +36,22 @@ const LogoPlaceholder = () => {
   );
 };
 
+// Skeleton Loader Component for Restaurant Card
+const RestaurantCardSkeleton = ({ colors }: { colors: ReturnType<typeof useTheme>['colors'] }) => {
+  const styles = createDynamicStyles(colors);
+  return (
+    <View style={styles.cardSkeleton}>
+      <View style={styles.skeletonImageContainer} />
+      <View style={styles.skeletonTextContainer}>
+        <View style={styles.skeletonTextLine} />
+      </View>
+    </View>
+  );
+};
+
 const SelectRestaurantScreen = () => {
   const router = useRouter();
-  const { updateRestaurantSelection } = useAuth();
+  const { updateRestaurantSelection, logout } = useAuth(); // Added logout
   const [restaurants, setRestaurants] = useState<RestaurantType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | number | null>(null);
@@ -46,34 +59,33 @@ const SelectRestaurantScreen = () => {
   const { colors } = useTheme(); // Get colors from theme context
   const styles = createDynamicStyles(colors); // Create styles dynamically
 
-  useEffect(() => {
-    const fetchRestaurants = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const response = await api.get('/api/v1/bo/restaurants/my_restaurants/');
-        // Assuming response.data.data is the array as per your web app
-        const restaurantData = response.data?.data || response.data || [];
-        const uniqueRestaurants = (restaurantData as RestaurantType[]).filter(
-          (restaurant, index, self) => index === self.findIndex(t => t.id === restaurant.id)
-        );
-        setRestaurants(uniqueRestaurants);
-        
-        const persistedRestaurantId = await AsyncStorage.getItem(RESTAURANT_ID_KEY);
-        if (persistedRestaurantId) {
-          setSelectedRestaurantId(persistedRestaurantId);
-        }
-
-      } catch (err: any) {
-        console.error('Failed to fetch restaurants:', err);
-        setError('Failed to load restaurants. Please try again.');
-      } finally {
-        setIsLoading(false);
+  const fetchRestaurants = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await api.get('/api/v1/bo/restaurants/my_restaurants/');
+      const restaurantData = response.data?.data || response.data || [];
+      const uniqueRestaurants = (restaurantData as RestaurantType[]).filter(
+        (restaurant, index, self) => index === self.findIndex(t => t.id === restaurant.id)
+      );
+      setRestaurants(uniqueRestaurants);
+      
+      const persistedRestaurantId = await AsyncStorage.getItem(RESTAURANT_ID_KEY);
+      if (persistedRestaurantId) {
+        setSelectedRestaurantId(persistedRestaurantId);
       }
-    };
 
+    } catch (err: any) {
+      console.error('Failed to fetch restaurants:', err);
+      setError('Failed to load restaurants. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []); // Added useCallback
+
+  useEffect(() => {
     fetchRestaurants();
-  }, []);
+  }, [fetchRestaurants]);
 
   const handleSelectRestaurant = async (restaurant: RestaurantType) => {
     if (!restaurant || restaurant.id === undefined) {
@@ -93,91 +105,103 @@ const SelectRestaurantScreen = () => {
     }
   };
 
-  if (isLoading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={{ color: colors.text, marginTop: 10 }}>Loading Restaurants...</Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>{error}</Text>
-      </View>
-    );
-  }
-
-  if (restaurants.length === 0) {
-    return (
-      <View style={styles.centered}>
-        <Text style={{ color: colors.text }}>No restaurants found for your account.</Text>
-      </View>
-    );
-  }
+  const handleChangeUser = async () => {
+    await logout();
+    // Navigation to login or initial screen will be handled by AuthContext or root navigator
+  };
 
   return (
-    <ScrollView style={styles.screenContainer} contentContainerStyle={styles.scrollContentContainer}>
-      <View style={styles.headerContainer}>
-        <Text style={styles.title}>Choose a Restaurant</Text>
-        <Text style={styles.subtitle}>Select the restaurant you want to manage</Text>
-      </View>
+    <View style={styles.screenContainerWithFixedButton}>
+      <ScrollView style={styles.screenContainerScrollView} contentContainerStyle={styles.scrollContentContainer}>
+        <View style={styles.headerContainer}>
+          <Text style={styles.title}>Choose a Restaurant</Text>
+          <Text style={styles.subtitle}>Select the restaurant you want to manage</Text>
+        </View>
 
-      <View style={styles.listContainer}>
-        {restaurants.map((restaurant) => {
-          const isActive = selectedRestaurantId === restaurant.id.toString();
-          return (
-            <TouchableOpacity
-              key={restaurant.id}
-              style={[
-                styles.card,
-                isActive && styles.cardActive,
-              ]}
-              onPress={() => handleSelectRestaurant(restaurant)}
-            >
-              <View style={[
-                styles.cardImageContainer,
-                isActive ? styles.cardImageContainerActive : styles.cardImageContainerInactive,
-              ]}>
-                <LogoPlaceholder />
-                <View style={[styles.addressBadge, isActive && styles.addressBadgeActive]}>
-                  <MaterialCommunityIcons name="map-marker-outline" size={14} color={isActive ? colors.text : colors.subtext} style={styles.mapPinIcon} />
-                  <Text style={[styles.addressText, isActive && styles.addressTextActive]} numberOfLines={1}>
-                    {restaurant.address || 'N/A'}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.cardContent}>
-                <Text style={[styles.cardTitle, isActive && styles.cardTitleActive]} numberOfLines={1}>
-                  {restaurant.name || 'Unnamed Restaurant'}
-                </Text>
-              </View>
+        {isLoading ? (
+          <View style={styles.listContainer}>
+            {[...Array(2)].map((_, index) => ( // Display 2 skeletons
+              <RestaurantCardSkeleton key={index} colors={colors} />
+            ))}
+          </View>
+        ) : error ? (
+          <View style={styles.centeredContent}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity onPress={fetchRestaurants} style={styles.retryButton}>
+              <Text style={styles.retryButtonText}>Retry</Text>
             </TouchableOpacity>
-          );
-        })}
-      </View>
-    </ScrollView>
+          </View>
+        ) : restaurants.length === 0 ? (
+          <View style={styles.centeredContent}>
+            <Text style={{ color: colors.text }}>No restaurants found for your account.</Text>
+          </View>
+        ) : (
+          <View style={styles.listContainer}>
+            {restaurants.map((restaurant) => {
+              const isActive = selectedRestaurantId === restaurant.id.toString();
+              return (
+                <TouchableOpacity
+                  key={restaurant.id}
+                  style={[
+                    styles.card,
+                    isActive && styles.cardActive,
+                  ]}
+                  onPress={() => handleSelectRestaurant(restaurant)}
+                >
+                  <View style={[
+                    styles.cardImageContainer,
+                    isActive ? styles.cardImageContainerActive : styles.cardImageContainerInactive,
+                  ]}>
+                    <LogoPlaceholder />
+                    <View style={[styles.addressBadge, isActive && styles.addressBadgeActive]}>
+                      <MaterialCommunityIcons name="map-marker-outline" size={14} color={isActive ? colors.text : colors.subtext} style={styles.mapPinIcon} />
+                      <Text style={[styles.addressText, isActive && styles.addressTextActive]} numberOfLines={1}>
+                        {restaurant.address || 'N/A'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.cardContent}>
+                    <Text style={[styles.cardTitle, isActive && styles.cardTitleActive]} numberOfLines={1}>
+                      {restaurant.name || 'Unnamed Restaurant'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
+      <TouchableOpacity style={styles.changeUserButton} onPress={handleChangeUser}>
+        <Feather name="log-out" size={20} color={colors.white} />
+        <Text style={styles.changeUserButtonText}>Change User</Text>
+      </TouchableOpacity>
+    </View>
   );
 };
 
 // Function to create styles dynamically based on theme colors
 const createDynamicStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.create({
+  screenContainerWithFixedButton: { // New style for the main container
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  screenContainerScrollView: { // Style for the ScrollView part
+    flex: 1,
+  },
   screenContainer: {
     flex: 1,
     backgroundColor: colors.background,
   },
   scrollContentContainer: {
     alignItems: 'center',
-    paddingBottom: 40,
+    paddingBottom: 80, // Increased padding to avoid overlap with fixed button
   },
-  centered: {
+  centeredContent: { // Renamed from 'centered' to be more specific for content
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background,
     paddingHorizontal: 20,
+    marginTop: 50, // Add some margin if needed
   },
   errorText: {
     color: colors.danger,
@@ -294,6 +318,74 @@ const createDynamicStyles = (colors: ReturnType<typeof useTheme>['colors']) => S
   },
   cardTitleActive: {
     color: colors.primary, // Or a brighter text color if primary is too strong
+  },
+  // Skeleton Styles
+  cardSkeleton: {
+    width: 180,
+    height: 200,
+    borderRadius: 12,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  skeletonImageContainer: {
+    height: '75%',
+    backgroundColor: colors.border, // Placeholder color
+    margin: 6,
+    borderRadius: 10,
+  },
+  skeletonTextContainer: {
+    padding: 10,
+    height: '25%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  skeletonTextLine: {
+    width: '80%',
+    height: 16,
+    backgroundColor: colors.border, // Placeholder color
+    borderRadius: 4,
+  },
+  // Retry Button Styles
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  // Change User Button Styles
+  changeUserButton: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary, // Similar to logout button
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  changeUserButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 

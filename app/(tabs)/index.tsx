@@ -31,6 +31,7 @@ import ColumnCustomizationModal from "../../components/reservation/ColumnCustomi
 import AddReservationModal from "@/components/reservation/AddReservationModal"
 import { ErrorBoundaryProps } from "expo-router"
 import { useSelectedDate } from '@/Context/SelectedDateContext'; // Added
+import messaging from '@react-native-firebase/messaging'; // Import messaging
 
 // Types and Interfaces
 export interface ReceivedTables {
@@ -177,6 +178,83 @@ export function ErrorBoundary(props: ErrorBoundaryProps) {
   );
 }
 
+// Helper function to check if notification matches current filters
+const checkIfNotificationMatchesFilters = (
+  notificationData: { reservation_date?: string; reservation_status?: string; type?: string; [key: string]: any },
+  currentFilters: {
+    focusedFilter: string;
+    selectedDateRange: { start: Date | null; end: Date | null };
+    filterDate: boolean;
+    contextSelectedDate: string | null; // Assumed to be YYYY-MM-DD
+    searchKeyWord: string;
+  },
+  isNewReservation: boolean // Explicitly pass if the notification is for a new reservation
+): boolean => {
+  const { reservation_date, reservation_status } = notificationData;
+  const { focusedFilter: currentStatusFilter, selectedDateRange, filterDate: isDateFilterActive, contextSelectedDate: currentContextDate, searchKeyWord: currentSearchKeyword } = currentFilters;
+
+  console.log("[FilterCheck] Notification Data:", notificationData);
+  console.log("[FilterCheck] Current Filters:", currentFilters);
+  console.log("[FilterCheck] Is New Reservation:", isNewReservation);
+
+
+  // 1. Status Filter
+  if (currentStatusFilter && reservation_status !== currentStatusFilter) {
+    console.log("[FilterCheck] Failed: Status mismatch");
+    return false;
+  }
+
+  // 2. Date Filter
+  // Only apply date filtering if filterDate is true AND the notification has a date.
+  if (isDateFilterActive && reservation_date) {
+    const notifDateOnly = reservation_date; // Already YYYY-MM-DD
+
+    if (selectedDateRange.start && selectedDateRange.end) {
+      const rangeStartDateOnly = format(selectedDateRange.start, "yyyy-MM-dd");
+      const rangeEndDateOnly = format(selectedDateRange.end, "yyyy-MM-dd");
+      if (notifDateOnly < rangeStartDateOnly || notifDateOnly > rangeEndDateOnly) {
+        console.log("[FilterCheck] Failed: Outside selected date range");
+        return false;
+      }
+    } else if (selectedDateRange.start) { // Single day selected via range picker
+      const selectedDayOnly = format(selectedDateRange.start, "yyyy-MM-dd");
+      if (notifDateOnly !== selectedDayOnly) {
+        console.log("[FilterCheck] Failed: Not the selected day (from range picker)");
+        return false;
+      }
+    } else if (currentContextDate) { // Date from context (e.g., calendar day click)
+       if (notifDateOnly !== currentContextDate) {
+         console.log("[FilterCheck] Failed: Not the context selected day", {notifDateOnly, currentContextDate});
+        return false;
+      }
+    } else { // Default to today if filterDate is true but no specific date/range selected
+      const todayDateOnly = format(new Date(), "yyyy-MM-dd");
+      if (notifDateOnly !== todayDateOnly) {
+        console.log("[FilterCheck] Failed: Not today (default date filter)");
+        return false;
+      }
+    }
+  } else if (isDateFilterActive && !reservation_date) {
+    // Date filter is on, but notification has no date. Consider this a mismatch.
+    console.log("[FilterCheck] Failed: Date filter active, but notification has no date");
+    return false;
+  }
+
+  // 3. Search Filter
+  // If a search keyword is active, we generally don't auto-refresh for updates,
+  // as it's hard to tell if the updated item still matches the search.
+  // However, if it's a NEW reservation, it should appear if other filters match,
+  // as it wouldn't have been part of the original search.
+  if (currentSearchKeyword && !isNewReservation) {
+    console.log("[FilterCheck] Skipped: Search filter active and not a new reservation.");
+    return false;
+  }
+  
+  console.log("[FilterCheck] Passed all checks.");
+  return true;
+};
+
+
 // Main ReservationsScreen Component
 const ReservationsScreen = () => {
   const { isDarkMode, colors } = useTheme()
@@ -224,6 +302,9 @@ const ReservationsScreen = () => {
   const [filterDate, setFilterDate] = useState<boolean>(true)
   const [showFilterModal, setShowFilterModal] = useState<boolean>(false)
   const [isLoadingData, setIsLoadingData] = useState<boolean>(true); // Combined loading state
+  const [isLoadingReservationForModal, setIsLoadingReservationForModal] = useState<boolean>(false); 
+  const [reservationIdBeingProcessed, setReservationIdBeingProcessed] = useState<string | null>(null); 
+
 
   // Reservation progress data
   const [reservationProgressData, setReservationProgressData] = useState<DataTypes>({
@@ -302,13 +383,6 @@ const ReservationsScreen = () => {
       setCount(response.data.count || 0);
 
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        console.log("Error fetching reservations:", { error, res: error.response });
-      } else if (error instanceof Error) {
-        console.log("Error fetching reservations:", { error, message: error.message });
-      } else {
-        console.log("Error fetching reservations:", error);
-      }
       setReservations([]);
       setFilteredReservations([]);
       setCount(0);
@@ -320,41 +394,149 @@ const ReservationsScreen = () => {
   // Fetch reservations on initial load and when dependencies change
   useEffect(() => {
     fetchReservations();
-  }, [fetchReservations]); // Simplified to just fetchReservations
+  }, [fetchReservations]); 
+
+  // Effect for Foreground FCM messages specific to ReservationsScreen
+  useEffect(() => {
+    const unsubscribe = messaging().onMessage(async remoteMessage => {
+      console.log('[ReservationsScreen] FCM Message received in foreground:', remoteMessage);
+
+      // Prevent refresh if a modal is loading or list is already refreshing
+      if (isLoadingReservationForModal || isLoadingData) {
+        console.log('[ReservationsScreen] Skipping foreground refresh: modal loading or data already loading.');
+        return;
+      }
+
+      const notificationData = remoteMessage.data;
+      if (notificationData) {
+        // Determine if it's a new reservation. Adjust 'type' based on your actual notification payload.
+        const isNew = notificationData.type === 'NEW_RESERVATION' || notificationData.event_type === 'RESERVATION_CREATED'; // Example types
+
+        const currentFilters = {
+          focusedFilter,
+          selectedDateRange,
+          filterDate,
+          contextSelectedDate: contextSelectedDate ? format(new Date(contextSelectedDate), "yyyy-MM-dd") : null,
+          searchKeyWord,
+        };
+
+        // reservation_date and reservation_status should come from remoteMessage.data
+        // Ensure your backend sends these in the data payload of the FCM message.
+        const relevantNotificationData = {
+            reservation_date: typeof notificationData.reservation_date === 'string' ? notificationData.reservation_date : undefined, // Expected format: YYYY-MM-DD
+            reservation_status: typeof notificationData.reservation_status === 'string' ? notificationData.reservation_status : undefined, // Expected e.g., "PENDING"
+            type: typeof notificationData.type === 'string' ? notificationData.type : undefined, // Ensure type is also string or undefined
+            // any other data needed for filtering
+        };
+
+        if (checkIfNotificationMatchesFilters(relevantNotificationData, currentFilters, isNew)) {
+          console.log('[ReservationsScreen] Notification matches filters. Refreshing reservations list.');
+          fetchReservations(false); // Refresh without full page loader
+        } else {
+          console.log('[ReservationsScreen] Notification does not match current filters. No refresh.');
+        }
+      }
+    });
+
+    return unsubscribe; // Unsubscribe when component unmounts
+  }, [
+    fetchReservations, 
+    focusedFilter, 
+    selectedDateRange, 
+    filterDate, 
+    contextSelectedDate, 
+    searchKeyWord,
+    isLoadingReservationForModal, // Add these to prevent stale closures
+    isLoadingData
+  ]);
 
   // Effect to handle reservation_id from route params
   useEffect(() => {
     const reservationIdFromParam = params.reservation_id;
-    if (reservationIdFromParam && !showModal) { // Process only if ID exists and modal isn't already open for it
-      const fetchAndShowReservation = async (id: string) => {
-        setIsLoadingData(true);
-        try {
-          const response = await api.get<Reservation>(`/api/v1/bo/reservations/${id}/`);
-          const reservationData = response.data;
-          if (reservationData) {
-            setSelectedClient(reservationData);
-            setReservationProgressData({
-              reserveDate: reservationData.date,
-              time: reservationData.time.slice(0, 5), // HH:mm
-              guests: parseInt(reservationData.number_of_guests, 10) || 0,
-            });
-            setEditingClient(reservationData.id); // Keep track of which client is being edited
-            setShowModal(true);
-            // Optionally clear the param from URL if desired, though not strictly necessary
-            // router.setParams({ reservation_id: undefined }); 
-          } else {
-            Alert.alert("Not Found", `Reservation with ID ${id} not found.`);
-          }
-        } catch (error) {
-          console.error(`Error fetching reservation ${id}:`, error);
-          Alert.alert("Error", `Could not load reservation ${id}.`);
-        } finally {
-          setIsLoadingData(false);
+    console.log(`[ReservationsScreen] useEffect for reservation_id. Param: ${reservationIdFromParam}, Current Processed ID: ${reservationIdBeingProcessed}, Modal Loading: ${isLoadingReservationForModal}, Modal Shown: ${showModal}`);
+
+    if (reservationIdFromParam) {
+      if (reservationIdFromParam !== reservationIdBeingProcessed) {
+        // This is a new ID to process, or we are re-processing an ID that was previously cleared.
+        console.log(`[ReservationsScreen] New or re-processing ID: ${reservationIdFromParam}. Initiating fetch.`);
+        
+        // If a modal for a different reservation was somehow stuck open, close it.
+        if (showModal && editingClient !== reservationIdFromParam) {
+            setShowModal(false);
+            setSelectedClient(null);
+            setEditingClient(undefined);
         }
-      };
-      fetchAndShowReservation(reservationIdFromParam);
+        
+        const fetchAndShowReservation = async (id: string) => {
+          console.log(`[ReservationsScreen] fetchAndShowReservation: Setting isLoadingReservationForModal = true for ID: ${id}`);
+          setIsLoadingReservationForModal(true);
+          setReservationIdBeingProcessed(id); // Mark this ID as being processed
+
+          try {
+            const response = await api.get<Reservation>(`/api/v1/bo/reservations/${id}/`);
+            const reservationData = response.data;
+            if (reservationData) {
+              console.log(`[ReservationsScreen] Successfully fetched reservation ${id}. Preparing to show modal.`);
+              setSelectedClient(reservationData);
+              setReservationProgressData({
+                reserveDate: reservationData.date,
+                time: reservationData.time.slice(0, 5), // HH:mm
+                guests: parseInt(reservationData.number_of_guests, 10) || 0,
+              });
+              setEditingClient(reservationData.id);
+              
+              console.log(`[ReservationsScreen] Setting isLoadingReservationForModal = false, then setShowModal = true for ${id}`);
+              setIsLoadingReservationForModal(false); // Turn off loader
+              setShowModal(true); // Then show modal
+            } else {
+              console.warn(`[ReservationsScreen] Reservation with ID ${id} not found by API.`);
+              Alert.alert("Not Found", `Reservation with ID ${id} not found.`);
+              setIsLoadingReservationForModal(false);
+              setReservationIdBeingProcessed(null); // Clear to allow retry if param appears again
+            }
+          } catch (error) {
+            console.error(`[ReservationsScreen] Error fetching reservation ${id}:`, error);
+            Alert.alert("Error", `Could not load reservation ${id}. Please try again.`);
+            setIsLoadingReservationForModal(false);
+            setReservationIdBeingProcessed(null); // Clear to allow retry
+          }
+        };
+        
+        fetchAndShowReservation(reservationIdFromParam);
+
+      } else {
+        // reservationIdFromParam === reservationIdBeingProcessed
+        // This means the effect ran again with the same ID.
+        // If we are not loading and the modal is not shown, it might be a stale state.
+        // However, the modal's onClose should handle clearing params, which then clears reservationIdBeingProcessed.
+        console.log(`[ReservationsScreen] Param ${reservationIdFromParam} is the same as reservationIdBeingProcessed. Modal loading: ${isLoadingReservationForModal}, Modal shown: ${showModal}. No new action unless state is inconsistent.`);
+        if (!isLoadingReservationForModal && !showModal && reservationIdBeingProcessed) {
+            // This state is unexpected if processing was successful. Could mean an error occurred
+            // and the modal didn't show, but reservationIdBeingProcessed wasn't cleared.
+            // Or the modal was closed without params being cleared.
+            console.warn(`[ReservationsScreen] Inconsistent state for ${reservationIdBeingProcessed}. Re-initiating fetch.`);
+            // To be safe, clear reservationIdBeingProcessed and let the next effect run cleanly or re-trigger.
+            // This might be too aggressive, but helps recover from stuck states.
+            // Consider if this re-fetch is desired or if reservationIdBeingProcessed should have been cleared earlier.
+            // For now, let's log and observe. A manual re-trigger might be:
+            // setReservationIdBeingProcessed(null); // This would cause the next run of useEffect to treat it as new.
+        }
+      }
+    } else {
+      // No reservationIdFromParam in the route.
+      // If we were processing an ID, it means the param was cleared (e.g., by modal close).
+      if (reservationIdBeingProcessed) {
+        console.log(`[ReservationsScreen] reservation_id param is now undefined. Clearing reservationIdBeingProcessed: ${reservationIdBeingProcessed}`);
+        setReservationIdBeingProcessed(null);
+        // Ensure modal is closed if it was associated with the cleared ID
+        if (showModal && editingClient === reservationIdBeingProcessed) {
+            setShowModal(false);
+            setSelectedClient(null);
+            setEditingClient(undefined);
+        }
+      }
     }
-  }, [params.reservation_id, showModal]);
+  }, [params.reservation_id, reservationIdBeingProcessed, router]); 
 
 
   // Save column preferences when they change
@@ -645,6 +827,17 @@ const ReservationsScreen = () => {
       isDarkMode={isDarkMode}
     />
   )
+
+  if (isLoadingReservationForModal) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={[styles.loadingText, { color: colors.text, marginTop: 10 }]}>
+          Loading reservation details...
+        </Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView
@@ -1027,9 +1220,20 @@ const ReservationsScreen = () => {
           reservation={selectedClient}
           onClose={() => {
             setShowModal(false);
-            // Clear reservation_id from route params
+            setEditingClient(undefined);
+            setSelectedClient(null);
+            // Clear reservation_id from route params.
+            // This will trigger the useEffect above, which will then clear reservationIdBeingProcessed.
             if (params.reservation_id) {
+              console.log(`[ReservationsScreen] EditReservationModal onClose: Clearing reservation_id param (${params.reservation_id}) from router.`);
               router.setParams({ reservation_id: undefined });
+            } else {
+                // If param was already undefined, but modal is closing, ensure processed ID is also cleared.
+                // This case should ideally be handled by the useEffect when param becomes undefined.
+                if(reservationIdBeingProcessed) {
+                    console.log(`[ReservationsScreen] EditReservationModal onClose: Param already undefined, ensuring reservationIdBeingProcessed (${reservationIdBeingProcessed}) is cleared.`);
+                    setReservationIdBeingProcessed(null);
+                }
             }
           }}
           onSave={upDateHandler}
@@ -1151,7 +1355,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   paginationContainer: {
-    marginVertical: 16,
+    marginVertical: 6,
   },
   modalOverlay: {
     flex: 1,

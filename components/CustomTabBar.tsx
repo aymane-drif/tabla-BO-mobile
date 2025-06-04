@@ -39,7 +39,7 @@ const CustomTabBar: React.FC<CustomTabBarProps> = ({ tabs }) => {
           borderTopColor: colors.border,
           shadowColor: isDarkMode ? "transparent" : "#000",
           paddingBottom: Math.max(insets.bottom, 10), // Ensure minimum padding
-          height: 76 + insets.bottom, // Add safe area to height
+          height: 50 + insets.bottom, // Add safe area to height
         },
       ]}
     >
@@ -65,7 +65,7 @@ const CustomTabBar: React.FC<CustomTabBarProps> = ({ tabs }) => {
                   color={isActive ? colors.primary : colors.subtext}
                 />
               </View>
-              <Text
+              {/* <Text
                 style={[
                   styles.tabLabel,
                   {
@@ -75,7 +75,7 @@ const CustomTabBar: React.FC<CustomTabBarProps> = ({ tabs }) => {
                 ]}
               >
                 {tab.label}
-              </Text>
+              </Text> */}
             </View>
           </TouchableOpacity>
         )

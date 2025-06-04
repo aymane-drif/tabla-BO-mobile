@@ -23,15 +23,14 @@ import { useTheme } from '@/Context/ThemeContext';
 const LoginScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false); // State for password visibility
   const { login, isLoading, isAuthenticated, user } = useAuth();
   const router = useRouter();
   const colorScheme = useColorScheme();
   
   const {colors} = useTheme();
-  console.log("LoginScreen", { isLoading, isAuthenticated, user });
 
   useEffect(() => {
-    // This navigation logic is primarily handled by _layout.tsx now
     if (isAuthenticated) {
       if (!user?.restaurantId && !user?.is_superuser && !user?.is_staff) {
         router.replace('/select-restaurant');
@@ -48,15 +47,16 @@ const LoginScreen = () => {
     }
     try {
       await login({ email, password });
-      // Navigation after successful login is handled by the root _layout.tsx
-      // based on isAuthenticated and user state.
     } catch (error: any) {
-      Alert.alert('Login Failed', error?.message || 'An unexpected error occurred. Please try again.');
+      Alert.alert('Login Failed', 'An unexpected error occurred. Please try again.');
     }
   };
 
-  // The loading state during initial auth check is handled by _layout.tsx
-  // This loading is specific to the login process itself.
+  const toggleShowPassword = () => {
+    setShowPassword(!showPassword);
+  };
+
+  // if (isLoading && !isAuthenticated) {
   if (isLoading && !isAuthenticated) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -64,12 +64,6 @@ const LoginScreen = () => {
         <Text style={[styles.loadingText, { color: colors.text }]}>Logging in...</Text>
       </View>
     );
-  }
-  
-  // If already authenticated, _layout.tsx should handle redirection.
-  // Returning null here prevents rendering the login form if auth state is already true.
-  if (isAuthenticated) {
-      return null; 
   }
 
   return (
@@ -85,7 +79,7 @@ const LoginScreen = () => {
       >
         <View style={styles.innerContainer}>
           <Stack.Screen options={{ headerShown: false }} />
-          <Image source={require('../assets/images/LOGO.png')} style={styles.logo} resizeMode="contain" />
+          <Image source={require('../assets/images/android/res/mipmap-xxxhdpi/ic_launcher_foreground.png')} style={styles.logo} resizeMode="cover" />
           
           <Text style={[styles.title, { color: colors.text }]}>Welcome Back!</Text>
           <Text style={[styles.subtitle, { color: colors.text }]}>Sign in to continue</Text>
@@ -100,27 +94,36 @@ const LoginScreen = () => {
               }
             ]}
             placeholder="Email"
-            placeholderTextColor={colorScheme === 'dark' ? '#888' : '#AAA'}
+            placeholderTextColor={colors.textMuted}            
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
           />
-          <TextInput
-            style={[
-              styles.input,
-              { 
-                backgroundColor: colors.card, 
-                color: colors.text, 
-                borderColor: colors.border 
-              }
-            ]}
-            placeholder="Password"
-            placeholderTextColor={colorScheme === 'dark' ? '#888' : '#AAA'}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
+          <View style={[
+            styles.passwordInputContainer,
+            { 
+              backgroundColor: colors.card, 
+              borderColor: colors.border 
+            }
+          ]}>
+            <TextInput
+              style={[
+                styles.passwordTextInput,
+                { color: colors.text }
+              ]}
+              placeholder="Password"
+              placeholderTextColor={colors.textMuted}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+            />
+            <TouchableOpacity onPress={toggleShowPassword} style={styles.toggleButton}>
+              <Text style={[styles.toggleButtonText, { color: colors.primary }]}>
+                {showPassword ? 'Hide' : 'Show'}
+              </Text>
+            </TouchableOpacity>
+          </View>
           <TouchableOpacity 
             style={[styles.button, { backgroundColor: colors.primary }]} 
             onPress={handleLogin} 
@@ -154,17 +157,17 @@ const LoginScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  scrollContainer: { // Renamed from container to avoid conflict, applied to ScrollView's contentContainerStyle
+  scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
-  innerContainer: { // New container for the content itself to manage width and alignment
+  innerContainer: {
     width: '100%',
-    alignItems: 'center', // Center logo, title, etc.
+    alignItems: 'center',
   },
-  container: { // Kept for the loading state, or can be merged/removed if scrollContainer covers all uses
+  container: { 
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center', 
@@ -174,6 +177,8 @@ const styles = StyleSheet.create({
     width: 150,
     height: 150,
     marginBottom: 30,
+    // scale the logo to fit the screen
+    transform: [{ scale: 2 }],
   },
   title: {
     fontSize: 28,
@@ -188,13 +193,38 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   input: {
-    width: '100%', // Make input take full width of padding
+    width: '100%',
     height: 50,
     borderWidth: 1,
     marginBottom: 15,
     paddingHorizontal: 15,
     borderRadius: 8,
     fontSize: 16,
+  },
+  passwordInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    height: 50,
+    borderWidth: 1,
+    borderRadius: 8,
+    marginBottom: 15,
+    paddingLeft: 15, // Left padding for the text input content
+  },
+  passwordTextInput: {
+    flex: 1, // Takes up available space before the toggle button
+    height: '100%', 
+    fontSize: 16,
+  },
+  toggleButton: {
+    paddingHorizontal: 15, // Provides padding around the text and acts as right padding for the container
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  toggleButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   button: {
     width: '100%',
@@ -203,8 +233,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 10,
-    elevation: 2, // for Android shadow
-    shadowColor: '#000', // for iOS shadow
+    elevation: 2, 
+    shadowColor: '#000', 
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 1,
@@ -229,8 +259,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 30, // Pushes it further down
-    paddingBottom: 10, // Ensure it's not cut off at the very bottom
+    marginTop: 30, 
+    paddingBottom: 10, 
   },
   footerLinkText: {
     fontSize: 12,

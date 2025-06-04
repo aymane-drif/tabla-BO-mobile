@@ -67,28 +67,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   };
 
-  useEffect(() => {
-    console.log('[AuthContext] Initializing AuthProvider',{authState, common: api.defaults.headers.common, axiosCommon: axios.defaults.headers.common});
-
-  }, []);
-
   // Effect to update axios instance defaults when authState changes
   useEffect(() => {
     if (authState.accessToken) {
       api.defaults.headers.common['Authorization'] = `Bearer ${authState.accessToken}`;
-      console.log('[AuthContext] Set Authorization header:', api.defaults.headers.common['Authorization']);
     } else {
       delete api.defaults.headers.common['Authorization'];
-      console.log('[AuthContext] Removed Authorization header');
     }
     // Use restaurantId from user object if available, otherwise from authState directly
     const currentRestaurantId = authState.user?.restaurantId || authState.restaurantId;
     if (currentRestaurantId) {
       api.defaults.headers.common['X-Restaurant-ID'] = currentRestaurantId;
-      console.log('[AuthContext] Set X-Restaurant-ID header:', api.defaults.headers.common['X-Restaurant-ID']);
     } else {
       delete api.defaults.headers.common['X-Restaurant-ID'];
-      console.log('[AuthContext] Removed X-Restaurant-ID header');
     }
   }, [authState.accessToken, authState.restaurantId, authState.user]);
 
@@ -101,7 +92,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
           authStatus === messaging.AuthorizationStatus.PROVISIONAL;
         if (!enabled) {
-          console.log('User has not granted notification permission');
           return;
         }
       } else { // Android
@@ -113,11 +103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const fcmToken = await messaging().getToken();
       if (fcmToken) {
-        // console.log("FCM Token:", fcmToken);
-        // Send this token to your backend
-        console.log("FCM token registered successfully:", { token: fcmToken, device_type: Platform.OS?.toUpperCase() || 'WEB'});
         const res = await api.post('/api/v1/device-tokens/', { token: fcmToken, device_type: /*Platform.OS?.toUpperCase() ||*/ 'WEB'})//:  }); // Example endpoint
-        // console.log('FCM token sent to server successfully.');
       } else {
         console.log("Failed to get FCM token");
       }
@@ -203,7 +189,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    await unregisterDeviceToken(); // Unregister FCM token on logout
+    // await unregisterDeviceToken(); // Unregister FCM token on logout
 
     await AsyncStorage.removeItem(AUTH_ACCESS_TOKEN_KEY);
     await AsyncStorage.removeItem(AUTH_REFRESH_TOKEN_KEY);
@@ -378,7 +364,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={{ ...authState, login, logout, getTokens, refreshAccessToken, updateRestaurantSelection, registerDeviceForNotifications }}>
-      {!authState.isLoading && children}
+      {/* {!authState.isLoading && children} */}
+      {children}
     </AuthContext.Provider>
   );
 };

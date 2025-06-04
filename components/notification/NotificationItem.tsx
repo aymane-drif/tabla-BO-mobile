@@ -30,6 +30,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onPre
         styles.container,
         !notification.is_read && styles.unreadContainer,
       ]}
+      delayPressIn={100} // Delay to prevent accidental taps
       onPress={() => onPress(notification)}
     >
       {!notification.is_read && <View style={styles.unreadIndicator} />}

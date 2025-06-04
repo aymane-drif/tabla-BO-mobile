@@ -43,6 +43,7 @@ api.interceptors.response.use(
   (response) => response, // Simply return the response if it's successful
   async (error) => {
     const originalRequest = error.config;
+    console.log('error with axios api call', {message:error.message, res: error.response.data});
     if (error.response && (error.response.status === 401 || error.response.status === 411) && !originalRequest._retry) {
       originalRequest._retry = true; // Mark that we've tried to refresh to prevent infinite loops
 

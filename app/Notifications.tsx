@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator, Button, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator, Button, Platform, Linking } from 'react-native'; // Added Linking
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import NotificationItem from '../components/notification/NotificationItem';
 import { useTheme } from '../Context/ThemeContext';
@@ -7,7 +7,8 @@ import { api } from '@/api/axiosInstance';
 import messaging from '@react-native-firebase/messaging';
 import { useAuth } from '../Context/AuthContext'; // Import useAuth
 import { ErrorBoundaryProps, useRouter as useExpoRouter } from 'expo-router';
-import {PermissionsAndroid} from 'react-native';
+import { PermissionsAndroid } from 'react-native';
+import { Feather } from '@expo/vector-icons'; // For icons in permission alert
 
 export type NotificationType = { // Assuming this structure based on dummy data and web app
   user_notification_id: number;
@@ -44,6 +45,11 @@ interface NotificationCountType {
 
 const PAGE_SIZE = 20;
 type ActiveTab = 'unread' | 'read';
+
+// Define PermissionStatus type
+type PermissionStatus = 'granted' | 'denied' | 'blocked' | 'undetermined';
+
+
 export function ErrorBoundary(props: ErrorBoundaryProps) {
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -54,22 +60,86 @@ export function ErrorBoundary(props: ErrorBoundaryProps) {
   );
 }
 
+// Skeleton Loader for Notification Item
+const NotificationItemSkeleton = ({ colors }: { colors: ReturnType<typeof useTheme>['colors'] }) => {
+  const styles = getStyles(colors); // Assuming getStyles is accessible or pass styles
+  return (
+    <View style={styles.skeletonItem}>
+      <View style={styles.skeletonIcon} />
+      <View style={styles.skeletonTextContainer}>
+        <View style={[styles.skeletonTextLine, { width: '70%' }]} />
+        <View style={[styles.skeletonTextLine, { width: '90%', marginTop: 6 }]} />
+        <View style={[styles.skeletonTextLine, { width: '50%', marginTop: 6 }]} />
+      </View>
+    </View>
+  );
+};
+
+
 const Notifications = () => {
   const { colors } = useTheme();
   const styles = getStyles(colors);
-  // const navigation = useNavigation(); // Prefer expo-router's useRouter
-  const router = useExpoRouter(); // Use expo-router's useRouter
-  const { isAuthenticated, registerDeviceForNotifications } = useAuth(); // Get auth state
+  const router = useExpoRouter();
+  const { isAuthenticated, registerDeviceForNotifications } = useAuth();
   const [notifications, setNotifications] = useState<NotificationType[]>([]);
   const [activeTab, setActiveTab] = useState<ActiveTab>('unread');
   
   const [isLoading, setIsLoading] = useState(false);
-  const [isPageLoading, setIsPageLoading] = useState(false); // For loading more
+  const [isPageLoading, setIsPageLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notificationCounts, setNotificationCounts] = useState<NotificationCountType>({ read: 0, total: 0, unread: 0 });
   
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
+  const [notificationPermissionStatus, setNotificationPermissionStatus] = useState<PermissionStatus>('undetermined');
+  const initialLoadDone = useRef(false); // To track initial permission check
+
+  const checkAndRequestPermissions = useCallback(async (requestIfDenied = false) => {
+    let currentStatus: PermissionStatus = 'undetermined';
+    if (Platform.OS === 'ios') {
+      const authStatus = await messaging().hasPermission();
+      if (authStatus === messaging.AuthorizationStatus.AUTHORIZED || authStatus === messaging.AuthorizationStatus.PROVISIONAL) {
+        currentStatus = 'granted';
+      } else if (authStatus === messaging.AuthorizationStatus.DENIED) {
+        currentStatus = 'denied';
+      } else { // NOT_DETERMINED or other
+        currentStatus = 'undetermined';
+      }
+
+      if ((currentStatus === 'denied' || currentStatus === 'undetermined') && requestIfDenied) {
+        const requestedAuthStatus = await messaging().requestPermission();
+        if (requestedAuthStatus === messaging.AuthorizationStatus.AUTHORIZED || requestedAuthStatus === messaging.AuthorizationStatus.PROVISIONAL) {
+          currentStatus = 'granted';
+        } else {
+          currentStatus = 'denied'; // User denied or did not grant
+        }
+      }
+    } else if (Platform.OS === 'android') {
+      const granted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+      if (granted) {
+        currentStatus = 'granted';
+      } else {
+        currentStatus = 'denied'; // Initially assume denied if not explicitly granted
+      }
+
+      if (currentStatus === 'denied' && requestIfDenied) {
+        const permissionRequestResult = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+        if (permissionRequestResult === PermissionsAndroid.RESULTS.GRANTED) {
+          currentStatus = 'granted';
+        } else if (permissionRequestResult === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+          currentStatus = 'blocked';
+        } else {
+          currentStatus = 'denied';
+        }
+      }
+    }
+    setNotificationPermissionStatus(currentStatus);
+    if (currentStatus === 'granted' && isAuthenticated) {
+       registerDeviceForNotifications(); // Register if permission granted
+    }
+    return currentStatus;
+  }, [isAuthenticated, registerDeviceForNotifications]);
+
 
   const fetchNotificationCounts = useCallback(async () => {
     try {
@@ -113,67 +183,71 @@ const Notifications = () => {
     
   }, []);
 
-  const fetchAndRefresh = useCallback(() => {
-    fetchNotificationCounts();
-    fetchNotifications(1, activeTab, true);
-  }, [fetchNotificationCounts, fetchNotifications, activeTab]);
-
+  // Combined effect for initial load and tab changes
   useEffect(() => {
-    // router.replace('/select-restaurant'); 
-  }
-  , []);
-  useEffect(() => {
-  // Ensure this is called after fetching notifications
-    if (isAuthenticated) { // Only fetch if authenticated
-      fetchAndRefresh();
+    if (isAuthenticated) {
+      if (!initialLoadDone.current) {
+        checkAndRequestPermissions(false); // Check permissions once on initial authenticated load
+        initialLoadDone.current = true;
+      }
+      fetchNotificationCounts();
+      fetchNotifications(1, activeTab, true); // Fetch notifications for the current tab
     } else {
-      // Clear notifications if user logs out while on this screen
+      // Clear data if user becomes unauthenticated (e.g., token expiry while screen is open)
       setNotifications([]);
       setNotificationCounts({ read: 0, total: 0, unread: 0 });
+      setNotificationPermissionStatus('undetermined');
+      initialLoadDone.current = false; // Reset for next authenticated session
     }
-  }, [activeTab, isAuthenticated, fetchAndRefresh]);
+  }, [activeTab, isAuthenticated, checkAndRequestPermissions, fetchNotificationCounts, fetchNotifications]);
 
+
+  // Effect for FCM setup and message handling
   useEffect(() => {
-    if (!isAuthenticated) return;
-
-    // Request permission and register token (might be redundant if AuthContext handles it well, but good for robustness)
-    const setupPermissions = async () => {
-        if (Platform.OS === 'ios') {
-            const authStatus = await messaging().requestPermission();
-            const enabled =
-              authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-              authStatus === messaging.AuthorizationStatus.PROVISIONAL;
-            if (enabled) {
-              // console.log('Authorization status:', authStatus);
-              // Consider calling registerDeviceForNotifications here if not handled by AuthContext on app load
-            }
-        }else if (Platform.OS === 'android') {
-          PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
-        }
-        // Android permission is typically handled by default or via AndroidManifest
-        // For Android 13+, messaging().requestPermission() or PermissionsAndroid is needed.
-        // Assuming AuthContext's registerDeviceForNotifications covers this.
-    };
-    setupPermissions();
+    if (!isAuthenticated || notificationPermissionStatus !== 'granted') {
+        // If permission is not granted, we still want to clear listeners if they were somehow set up before
+        // or if the status changes from granted to something else.
+        // However, new listeners are only set up if status is 'granted'.
+        const noOp = () => {};
+        const unsubscribeForeground = messaging().onMessage(noOp); // Ensure existing listeners are replaced/cleared
+        const unsubscribeOpenedApp = messaging().onNotificationOpenedApp(noOp);
+        // No need to call getInitialNotification here if permission isn't granted
+        const unsubscribeTokenRefresh = messaging().onTokenRefresh(noOp);
+        
+        unsubscribeForeground();
+        unsubscribeOpenedApp();
+        unsubscribeTokenRefresh();
+        return;
+    }
 
     // Foreground messages
     const unsubscribeForeground = messaging().onMessage(async remoteMessage => {
-      console.log('FCM Message received in foreground:', remoteMessage);
-      // console.log('A new FCM message arrived in foreground!', JSON.stringify(remoteMessage));
-      // Refresh notification list and counts
-      fetchAndRefresh();
+      // Add a check to prevent multiple refreshes if one is already in progress
+      if (isLoading) {
+        console.log('Notifications screen: Refresh already in progress, skipping immediate refresh for new message.');
+        return;
+      }
+      console.log('FCM Message received in foreground on Notifications screen:', remoteMessage);
+      // It's generally good practice to fetch counts first, then the list.
+      await fetchNotificationCounts(); 
+      await fetchNotifications(1, activeTab, true); 
     });
 
     // Handle notification tap when app is in background
     const unsubscribeOpenedApp = messaging().onNotificationOpenedApp(remoteMessage => {
-      console.log('FCM Message received in foreground:', remoteMessage);
-      // console.log('Notification caused app to open from background state:', remoteMessage);
-      if (remoteMessage?.data?.reservation_id) {
-        const reservationId = remoteMessage.data.reservation_id;
+      console.log('[Notifications.tsx] onNotificationOpenedApp: Notification caused app to open from background state:', JSON.stringify(remoteMessage, null, 2));
+      const reservationId = remoteMessage?.data?.reservation_id;
+      if (reservationId) {
+        console.log(`[Notifications.tsx] onNotificationOpenedApp: Found reservation_id: ${reservationId}. Attempting to navigate.`);
         router.push(`/?reservation_id=${reservationId}`);
+      } else {
+        console.log('[Notifications.tsx] onNotificationOpenedApp: No reservation_id found in notification data.');
       }
-      // Potentially mark as read or refresh list
-      fetchAndRefresh();
+      // These fetches are for the Notifications.tsx screen itself.
+      // If navigation to index.tsx occurs, these might be interrupted or run for a screen that's about to unmount.
+      console.log('[Notifications.tsx] onNotificationOpenedApp: Fetching notification counts and list for Notifications.tsx screen.');
+      fetchNotificationCounts();
+      fetchNotifications(1, activeTab, true);
     });
 
     // Handle notification tap when app is opened from quit state
@@ -181,22 +255,24 @@ const Notifications = () => {
       .getInitialNotification()
       .then(remoteMessage => {
         if (remoteMessage) {
-          // console.log('Notification caused app to open from quit state:', remoteMessage);
-          if (remoteMessage?.data?.reservation_id) {
-            const reservationId = remoteMessage.data.reservation_id;
+          console.log('[Notifications.tsx] getInitialNotification: Notification caused app to open from quit state:', JSON.stringify(remoteMessage, null, 2));
+          const reservationId = remoteMessage?.data?.reservation_id;
+          if (reservationId) {
+            console.log(`[Notifications.tsx] getInitialNotification: Found reservation_id: ${reservationId}. Attempting to navigate.`);
             router.push(`/?reservation_id=${reservationId}`);
+          } else {
+            console.log('[Notifications.tsx] getInitialNotification: No reservation_id found in notification data.');
           }
-          // Potentially mark as read or refresh list
-          fetchAndRefresh();
+          // Similar to above, these fetches are for Notifications.tsx
+          console.log('[Notifications.tsx] getInitialNotification: Fetching notification counts and list for Notifications.tsx screen.');
+          fetchNotificationCounts();
+          fetchNotifications(1, activeTab, true);
         }
       });
     
-    // Token refresh listener
     const unsubscribeTokenRefresh = messaging().onTokenRefresh(newToken => {
-        // console.log('FCM Token refreshed:', newToken);
-        // Re-register the new token with your backend
-        if (isAuthenticated) {
-            registerDeviceForNotifications(); // This function in AuthContext should handle sending the new token
+        if (isAuthenticated) { // Ensure still authenticated
+            registerDeviceForNotifications(); 
         }
     });
 
@@ -205,61 +281,64 @@ const Notifications = () => {
       unsubscribeOpenedApp();
       unsubscribeTokenRefresh();
     };
-  }, [isAuthenticated, router, fetchAndRefresh, registerDeviceForNotifications]);
+  }, [isAuthenticated, router, registerDeviceForNotifications, notificationPermissionStatus, activeTab, fetchNotificationCounts, fetchNotifications]);
   
-  // Refresh data when the screen comes into focus
   useFocusEffect(
     useCallback(() => {
       if (isAuthenticated) {
-        fetchAndRefresh();
+        checkAndRequestPermissions(false).then(status => {
+            // Fetch data regardless of native permission for in-app notifications
+            // but ensure counts and list are up-to-date.
+            fetchNotificationCounts();
+            fetchNotifications(1, activeTab, true);
+        });
       }
-    }, [isAuthenticated, fetchAndRefresh])
+    }, [isAuthenticated, checkAndRequestPermissions, fetchNotificationCounts, fetchNotifications, activeTab])
   );
 
   const handleMarkAsRead = useCallback(async (notificationToMark: NotificationType, shouldNavigate = true) => {
     const reservationId = notificationToMark.data?.reservation_id;
 
+    // If already read and navigation is intended for a reservation, navigate directly.
     if (notificationToMark.is_read && shouldNavigate && notificationToMark.notification_type === 'RESERVATION' && reservationId) {
         router.push({ pathname: '/', params: { reservation_id: reservationId } });
         return;
     }
-    if(notificationToMark.is_read && !shouldNavigate) return; // If already read and no navigation, do nothing.
-    if(notificationToMark.is_read && shouldNavigate && !(notificationToMark.notification_type === 'RESERVATION' && reservationId)) {
-        // Already read, but no valid reservation to navigate to, or not a reservation notification.
-        // Potentially do nothing or handle other notification types if they have navigation targets.
+    // If already read and no navigation is intended, or it's not a reservation type that navigates, do nothing.
+    if (notificationToMark.is_read && (!shouldNavigate || !(notificationToMark.notification_type === 'RESERVATION' && reservationId))) {
         return;
     }
 
-
-    const originalNotifications = [...notifications];
-    // Optimistic update
-    setNotifications(prev => 
-      prev.map(n => 
-        n.user_notification_id === notificationToMark.user_notification_id 
-          ? { ...n, is_read: true, read_at: new Date().toISOString() } 
-          : n
-      )
-    );
-    if (activeTab === 'unread') { // If on unread tab, remove it visually
-        setNotifications(prev => prev.filter(n => n.user_notification_id !== notificationToMark.user_notification_id));
-    }
-
+    // If not read, proceed to mark as read
     try {
       await api.post(`/api/v1/notifications/${notificationToMark.user_notification_id}/mark-read/`);
+
+      // API call successful, now update UI
+      setNotifications(prev => 
+        prev.map(n => 
+          n.user_notification_id === notificationToMark.user_notification_id 
+            ? { ...n, is_read: true, read_at: new Date().toISOString() } 
+            : n
+        )
+      );
+
+      if (activeTab === 'unread') {
+          setNotifications(prev => prev.filter(n => n.user_notification_id !== notificationToMark.user_notification_id));
+      }
+      
       await fetchNotificationCounts(); // Refresh counts
-      // Optionally, refetch the current page for consistency if optimistic update is not enough
-      // await fetchNotifications(1, activeTab, true); // Or just rely on counts and optimistic update
 
       if (shouldNavigate && notificationToMark.notification_type === 'RESERVATION' && reservationId) {
         router.push({ pathname: '/', params: { reservation_id: reservationId } });
       }
     } catch (err) {
       console.error('Failed to mark notification as read:', err);
-      setNotifications(originalNotifications); // Revert optimistic update
-      await fetchNotificationCounts(); // Refresh counts anyway
-      Alert.alert("Error", "Could not mark notification as read.");
+      Alert.alert("Error", "Could not mark notification as read. Please try again.");
+      // Optionally, to ensure data consistency after an error, you might want to refetch
+      // or at least refresh counts if the server state might be uncertain.
+      await fetchNotificationCounts();
     }
-  }, [router, notifications, activeTab, fetchNotificationCounts, fetchNotifications]);
+  }, [router, activeTab, fetchNotificationCounts, notifications]); 
 
   const handleMarkAllAsRead = async () => {
     if (notificationCounts.unread === 0) return;
@@ -268,7 +347,7 @@ const Notifications = () => {
       await api.post('/api/v1/notifications/mark-all-read/');
       await fetchNotificationCounts();
       // Refresh the current tab; if it was 'unread', it should now be empty or show newly fetched 'read' items if tab switched.
-      await fetchNotifications(1, activeTab, true); 
+      fetchNotifications(1, activeTab, true); 
     } catch (err) {
       console.error('Failed to mark all as read:', err);
       Alert.alert("Error", "Could not mark all notifications as read.");
@@ -294,7 +373,7 @@ const Notifications = () => {
               setNotifications([]);
               await fetchNotificationCounts();
               // Current tab will be empty after clearing all
-              await fetchNotifications(1, activeTab, true); 
+              fetchNotifications(1, activeTab, true); 
             } catch (err) {
               console.error('Failed to clear all notifications:', err);
               Alert.alert("Error", "Could not clear all notifications.");
@@ -331,38 +410,111 @@ const Notifications = () => {
     return null;
   };
 
-  if (!isAuthenticated) {
-    return (
-        <SafeAreaView style={styles.safeArea}>
-            <View style={styles.centered}>
-                <Text style={{color: colors.text, fontSize: 16}}>Please log in to see notifications.</Text>
-                {/* Optionally, add a login button */}
-            </View>
-        </SafeAreaView>
-    );
-  }
+  const handleRequestPermissionAgain = async () => {
+    const status = await checkAndRequestPermissions(true); // Request again
+    if (status === 'blocked' || (Platform.OS === 'ios' && status === 'denied')) {
+        Alert.alert(
+            "Permission Blocked",
+            "Notification permissions are blocked. Please enable them in your phone settings.",
+            [
+                { text: "Cancel", style: "cancel" },
+                { text: "Open Settings", onPress: () => Linking.openSettings() }
+            ]
+        );
+    } else if (status === 'granted') {
+        // Permissions granted, data will be refreshed by focus effect or next tab change.
+        // Optionally, trigger a refresh immediately if desired.
+        fetchNotificationCounts();
+        fetchNotifications(1, activeTab, true);
+    }
+  };
 
-  if (isLoading && notifications.length === 0) { // Initial loading state
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={{ color: colors.text, marginTop: 10 }}>Loading notifications...</Text>
+  const renderPermissionAlert = () => {
+    if (notificationPermissionStatus === 'denied' || notificationPermissionStatus === 'blocked') {
+      const message = notificationPermissionStatus === 'blocked'
+        ? "Notifications are blocked. Enable them in settings for updates."
+        : "Enable notifications to receive important updates.";
+      return (
+        <View style={styles.permissionAlertContainer}>
+          <Feather name="bell-off" size={20} color={colors.text} />
+          <Text style={styles.permissionAlertText}>{message}</Text>
+          <TouchableOpacity onPress={handleRequestPermissionAgain} style={styles.permissionAlertButton}>
+            <Text style={styles.permissionAlertButtonText}>
+              {notificationPermissionStatus === 'blocked' ? "Open Settings" : "Enable"}
+            </Text>
+          </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      );
+    }
+    return null;
+  };
+
+
+  // Removed the top-level if (!isAuthenticated) check here.
+  // AuthContext and router should handle unauthenticated navigation.
+  
+  const renderContent = () => {
+    if (isLoading && notifications.length === 0 && !error) {
+      return (
+        <View style={styles.list}>
+          {[...Array(5)].map((_, index) => (
+            <NotificationItemSkeleton key={index} colors={colors} />
+          ))}
+        </View>
+      );
+    }
+
+    if (error && notifications.length === 0) { // Show error prominently if no data and error occurred
+      return (
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>{error}</Text>
+          <Button title="Retry" onPress={() => fetchNotifications(1, activeTab, true)} color={colors.primary} />
+        </View>
+      );
+    }
+    
+    // Updated empty state: Only shows if list is empty, not tied to permission status here.
+    if (notifications.length === 0 && !isLoading && !error) { 
+        return (
+            <View style={styles.emptyStateContainer}>
+                <Feather name={activeTab === 'unread' ? "mail" : "check-circle"} size={48} color={colors.subtext} />
+                <Text style={[styles.emptyStateText, {marginTop: 10}]}>
+                {activeTab === 'unread' ? 'No unread notifications.' : 'No read notifications.'}
+                </Text>
+            </View>
+        );
+    }
+
+    // Default: show list
+    return (
+      <FlatList
+        data={notifications}
+        renderItem={renderItem}
+        keyExtractor={item => item.user_notification_id.toString()}
+        style={styles.list}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={renderFooter}
+        refreshing={isLoading && notifications.length > 0}
+        onRefresh={() => fetchNotifications(1, activeTab, true)}
+        ListHeaderComponent={error && notifications.length > 0 ? ( // Inline error if data is already present
+            <View style={styles.inlineErrorContainer}>
+              <Text style={styles.inlineErrorText}>{error} Pull to refresh.</Text>
+            </View>
+          ) : null}
+      />
     );
-  }
+  };
+
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      {renderPermissionAlert()} 
       <View style={styles.container}>
         <View style={styles.tabContainer}>
           <TouchableOpacity
             style={[styles.tabButton, activeTab === 'unread' && styles.activeTabButton]}
-            onPress={() => {
-              setActiveTab('unread');
-              // fetchNotifications(1, 'unread', true) will be called by useEffect due to activeTab change
-            }}
+            onPress={() => setActiveTab('unread')}
           >
             <Text style={[styles.tabButtonText, activeTab === 'unread' && styles.activeTabButtonText]}>
               Unread ({notificationCounts.unread})
@@ -370,10 +522,7 @@ const Notifications = () => {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tabButton, activeTab === 'read' && styles.activeTabButton]}
-            onPress={() => {
-              setActiveTab('read');
-              // fetchNotifications(1, 'read', true) will be called by useEffect due to activeTab change
-            }}
+            onPress={() => setActiveTab('read')}
           >
             <Text style={[styles.tabButtonText, activeTab === 'read' && styles.activeTabButtonText]}>
               Read ({notificationCounts.read})
@@ -381,34 +530,9 @@ const Notifications = () => {
           </TouchableOpacity>
         </View>
 
-        {error && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
-            <Button title="Retry" onPress={() => fetchNotifications(1, activeTab, true)} color={colors.primary} />
-          </View>
-        )}
+        {renderContent()}
 
-        {notifications.length === 0 && !isLoading && !error ? (
-          <View style={styles.emptyStateContainer}>
-            <Text style={styles.emptyStateText}>
-              {activeTab === 'unread' ? 'No unread notifications.' : 'No read notifications.'}
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={notifications} // Use API-fetched notifications
-            renderItem={renderItem}
-            keyExtractor={item => item.user_notification_id.toString()}
-            style={styles.list}
-            onEndReached={handleLoadMore}
-            onEndReachedThreshold={0.5}
-            ListFooterComponent={renderFooter}
-            refreshing={isLoading && notifications.length > 0} // Show refresh control if loading new set while old data is visible
-            onRefresh={() => fetchNotifications(1, activeTab, true)} // Pull to refresh
-          />
-        )}
-
-        {notificationCounts.total > 0 && (
+        {notificationCounts.total > 0 && !error && ( // Hide footer actions if there's a major error screen
           <View style={styles.footerActions}>
             <TouchableOpacity
               onPress={handleMarkAllAsRead}
@@ -449,6 +573,18 @@ const getStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.
     padding: 20,
     alignItems: 'center',
     backgroundColor: colors.danger + '20', // Light danger background
+    borderBottomWidth: 1,
+    borderBottomColor: colors.danger + '50',
+  },
+  inlineErrorContainer: { // For less intrusive errors when data is present
+    padding: 10,
+    backgroundColor: colors.warning, // A lighter error color
+    alignItems: 'center',
+  },
+  inlineErrorText: {
+    color: colors.text,
+    fontSize: 14,
+    textAlign: 'center',
   },
   errorText: {
     color: colors.danger,
@@ -484,6 +620,7 @@ const getStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.
   },
   list: {
     flex: 1,
+    backgroundColor: colors.background, // Ensure list has background
   },
   emptyStateContainer: {
     flex: 1,
@@ -535,7 +672,60 @@ const getStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.
     color: colors.primary,
     fontSize: 14,
     fontWeight: 'bold',
-  }
+  },
+  // Skeleton Styles
+  skeletonItem: {
+    flexDirection: 'row',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+  },
+  skeletonIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.border,
+    marginRight: 15,
+  },
+  skeletonTextContainer: {
+    flex: 1,
+  },
+  skeletonTextLine: {
+    height: 12,
+    backgroundColor: colors.border,
+    borderRadius: 4,
+    marginBottom: 8,
+  },
+  // Permission Alert Styles
+  permissionAlertContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    // backgroundColor: colors.warning, // A distinct color for warnings
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.warning + '50', // Slightly darker border for the warning
+  },
+  permissionAlertText: {
+    flex: 1,
+    color: colors.text, // Text color that contrasts with warningBackground
+    fontSize: 13,
+    marginLeft: 10,
+    marginRight: 10,
+  },
+  permissionAlertButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 4,
+    backgroundColor: colors.warning, // Button color for the alert
+  },
+  permissionAlertButtonText: {
+    color: colors.text, // Text color for the button
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
 });
 
 export default Notifications;

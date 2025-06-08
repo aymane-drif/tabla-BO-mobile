@@ -11,6 +11,7 @@ import { api as axiosInstance } from '../api/axiosInstance';
 import messaging from '@react-native-firebase/messaging';
 import { format, isToday, isTomorrow, isValid, isYesterday, parseISO } from "date-fns" // Added parseISO
 import { useSelectedDate } from "@/Context/SelectedDateContext" // Added
+import { useNotifications } from "@/Context/NotificationContext"
 
 // Define NotificationCount interface
 interface NotificationCount {
@@ -41,9 +42,9 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
         
     }
 
-  const [notificationCount, setNotificationCount] = useState<NotificationCount>({ read: 0, total: 0, unread: 0 });
   const [selectedDateLabel, setSelectedDateLabel] = useState<string>("Today");
   const { selectedDate, setSelectedDate: setSelectedDateContext } = useSelectedDate(); // Use context
+  const { notificationCounts: notificationCount, onForegroundMessage } = useNotifications();
 
   // Function to get smart date label
   const getDateLabel = (dateString: string): string => {
@@ -82,17 +83,6 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
   }, [selectedDate]);
 
 
-  const fetchGlobalCounts = useCallback(async () => {
-    try {
-      const countResponse = await axiosInstance.get<NotificationCount>('/api/v1/notifications/count/');
-      const countData = countResponse.data || { read: 0, total: 0, unread: 0 };
-      setNotificationCount(countData);
-    } catch (err) {
-      console.error('Failed to fetch global notification counts:', err);
-      // Optionally set an error state for counts or use stale data
-    }
-  }, []);
-
   const handleTodayPress = useCallback(async () => {
     try {
       const today = new Date();
@@ -113,29 +103,6 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
     }
   }, [onTodayPress, setSelectedDateContext]);
 
-  useEffect(() => {
-    fetchGlobalCounts(); // Initial fetch
-    // loadSelectedDate(); // Removed
-    // Listener for foreground FCM messages
-    const unsubscribe = messaging().onMessage(async remoteMessage => {
-      console.log('FCM Message received in foreground (CustomHeader):', remoteMessage);
-      // Assuming any new message could affect the count, so refetch.
-      fetchGlobalCounts();
-    });
-
-    return unsubscribe; // Unsubscribe on component unmount
-  }, [fetchGlobalCounts]); // Removed loadSelectedDate dependency
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchGlobalCounts();
-      // loadSelectedDate(); // Removed
-      return () => {
-        // Optional: any cleanup actions
-      };
-    }, [fetchGlobalCounts]) // Removed loadSelectedDate dependency
-  );
-
     useEffect(() => {
     const handleAppStateChange = (nextAppState: string) => {
       if (nextAppState === 'active') {
@@ -152,14 +119,13 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
   }, []); // Removed loadSelectedDate dependency
 
   useEffect(() => {
-    const unsubscribe = messaging().onMessage(async remoteMessage => {
-      console.log('FCM Message received in CustomHeader:',remoteMessage);
-      // Refresh notification count when a new message arrives
-      fetchGlobalCounts();
+    // Nothing to do here, the context automatically updates counts
+    const unsubscribe = onForegroundMessage(() => {
+      // We don't need to do anything here, as counts are updated in the context
     });
-
-    return unsubscribe; // Unsubscribe on unmount
-  }, [fetchGlobalCounts]);
+    
+    return unsubscribe;
+  }, [onForegroundMessage]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.card }]}>

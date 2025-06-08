@@ -650,7 +650,7 @@ const EditReservationModal = ({
                     fontWeight: selectedClient?.source === source ? "600" : "normal",
                   }}
                 >
-                  {source.replace("_", " ")}
+                  {source.replace(/_/g, " ")}
                 </Text>
                 {selectedClient?.source === source && <Feather name="check" size={20} color={colors.primary} />}
               </TouchableOpacity>

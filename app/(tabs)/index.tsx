@@ -1,9 +1,9 @@
 "use client"
 
-import { useLocalSearchParams, useRouter } from 'expo-router'; // Added useLocalSearchParams
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { api } from '../../api/axiosInstance'; // Assuming api is your configured axios instance
-import { Alert } from 'react-native'; // Added Alert
-import axios from 'axios'; // Added axios for type checking
+import { Alert } from 'react-native';
+import axios from 'axios';
 import { useEffect, useState, useCallback } from "react" // Added useCallback
 import {
   View,
@@ -30,8 +30,9 @@ import ActionConfirmation from "../../components/reservation/ActionConfirmation"
 import ColumnCustomizationModal from "../../components/reservation/ColumnCustomizationModal"
 import AddReservationModal from "@/components/reservation/AddReservationModal"
 import { ErrorBoundaryProps } from "expo-router"
-import { useSelectedDate } from '@/Context/SelectedDateContext'; // Added
+import { useSelectedDate } from '@/Context/SelectedDateContext';
 import messaging from '@react-native-firebase/messaging'; // Import messaging
+import { useNotifications } from '@/Context/NotificationContext';
 
 // Types and Interfaces
 export interface ReceivedTables {
@@ -179,6 +180,7 @@ export function ErrorBoundary(props: ErrorBoundaryProps) {
 }
 
 // Helper function to check if notification matches current filters
+// (This function is defined but its return value is not currently used to gate refreshes)
 const checkIfNotificationMatchesFilters = (
   notificationData: { reservation_date?: string; reservation_status?: string; type?: string; [key: string]: any },
   currentFilters: {
@@ -258,9 +260,10 @@ const checkIfNotificationMatchesFilters = (
 // Main ReservationsScreen Component
 const ReservationsScreen = () => {
   const { isDarkMode, colors } = useTheme()
-  const router = useRouter(); // For navigation if needed, or clearing params
-  const params = useLocalSearchParams<{ reservation_id?: string }>(); // Get route params
-  const { selectedDate: contextSelectedDate } = useSelectedDate(); // Added: Get selected date from context
+  const router = useRouter();
+  const params = useLocalSearchParams<{ reservation_id?: string }>();
+  const { selectedDate: contextSelectedDate } = useSelectedDate();
+  const styles = getStyles(colors); // Ensure styles are generated with current colors
 
 
   // Column configuration
@@ -278,13 +281,14 @@ const ReservationsScreen = () => {
   const [searchKeyWord, setSearchKeyWord] = useState<string>("")
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [count, setCount] = useState<number>(0)
-  const [page, setPage] = useState<number>(1)
+  const [page, setPage] = useState<number>(1) // Current page number
   const [tables, setTables] = useState<any[]>([])
   const [floors, setFloors] = useState<any[]>([])
   const [selectedClient, setSelectedClient] = useState<Reservation | null>(null)
   const [hasTable, setHasTable] = useState<boolean>(false)
   const [selectingDay, setSelectingDay] = useState<string>("")
   const [focusedDate, setFocusedDate] = useState<boolean>(false)
+  // searchResults and searched state might be part of an unused client-side search. FlatList uses filteredReservations.
   const [searchResults, setSearchResults] = useState<Reservation[]>(reservations)
   const [searched, setSearched] = useState<boolean>(false)
   const [showModal, setShowModal] = useState<boolean>(false)
@@ -298,10 +302,15 @@ const ReservationsScreen = () => {
   const [pendingStatus, setPendingStatus] = useState<string>("")
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false)
   const [reservationToDelete, setReservationToDelete] = useState<string>("")
-  const [isLoading, setIsLoading] = useState<boolean>(true)
+  // isLoading is deprecated in favor of isLoadingData, isLoadingMore, isRefreshing
+  // const [isLoading, setIsLoading] = useState<boolean>(true) 
   const [filterDate, setFilterDate] = useState<boolean>(true)
   const [showFilterModal, setShowFilterModal] = useState<boolean>(false)
-  const [isLoadingData, setIsLoadingData] = useState<boolean>(true); // Combined loading state
+  
+  const [isLoadingData, setIsLoadingData] = useState<boolean>(true); // For initial load / full page reloads
+  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false); // For loading more items
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false); // For pull-to-refresh
+
   const [isLoadingReservationForModal, setIsLoadingReservationForModal] = useState<boolean>(false); 
   const [reservationIdBeingProcessed, setReservationIdBeingProcessed] = useState<string | null>(null); 
 
@@ -319,53 +328,43 @@ const ReservationsScreen = () => {
       const loadedColumns = await loadColumnsFromStorage()
       setColumns(loadedColumns)
     }
-    // const loadSelectedDate = async () => { // Removed AsyncStorage logic
-    //   try {
-    //     const storedDate = await AsyncStorage.getItem("selectedDate");
-    //     if (storedDate && !selectedDateRange.start && !selectedDateRange.end) {
-    //       const parsedDate = new Date(storedDate);
-    //       setSelectedDateRange({ start: parsedDate, end: parsedDate });
-    //       setSelectingDay(format(parsedDate, "dd/MM/yyyy"));
-    //     }
-    //   } catch (error) {
-    //     console.error("Error loading selected date from storage:", error);
-    //   }
-    // };
-    // loadSelectedDate(); // Removed
     loadColumns()
   }, [])
 
   // Save column preferences when they change
   useEffect(() => {
     saveColumnsToStorage(columns)
-  }, [columns])
+  }, [columns, saveColumnsToStorage]) // Added saveColumnsToStorage to dependencies
 
   
   // API call to fetch reservations
-  const fetchReservations = useCallback(async (showLoader = true) => { // Wrapped with useCallback
-    if (showLoader) setIsLoadingData(true);
+  const fetchReservations = useCallback(async (targetPage: number, showInitialLoader = true) => {
+    console.log(`[ReservationsScreen] Fetching reservations for page ${targetPage} with filters:`)
+    setIsLoadingData(true);
+    if (targetPage > 1) {
+      setIsLoadingMore(true);
+    } else { // This implies targetPage is 1 and showInitialLoader is false (pull-to-refresh)
+      setIsRefreshing(true);
+    }
+
     try {
-      // Construct query parameters
       const queryParams = new URLSearchParams();
-      queryParams.append('page', page.toString());
+      queryParams.append('page', targetPage.toString());
       queryParams.append('page_size', '10');
       if (focusedFilter) {
         queryParams.append('status', focusedFilter);
       }
 
-      // Handle date filtering logic
       if (selectedDateRange.start) {
         queryParams.append('date__gte', format(selectedDateRange.start, 'yyyy-MM-dd'));
       }
       if (selectedDateRange.end) {
         queryParams.append('date__lte', format(selectedDateRange.end, 'yyyy-MM-dd'));
-      } else if (filterDate && !selectedDateRange.start && contextSelectedDate) { // Use contextSelectedDate
-        // If no date range is set but filterDate is true, use context selected date
+      } else if (filterDate && !selectedDateRange.start && contextSelectedDate) {
         const dateToUse = format(new Date(contextSelectedDate), 'yyyy-MM-dd');
         queryParams.append('date__gte', dateToUse);
         queryParams.append('date__lte', dateToUse);
       } else if (filterDate && !selectedDateRange.start && !contextSelectedDate) {
-        // Fallback to today if no context date and no range
         const today = new Date();
         queryParams.append('date__gte', format(today, 'yyyy-MM-dd'));
         queryParams.append('date__lte', format(today, 'yyyy-MM-dd'));
@@ -377,90 +376,90 @@ const ReservationsScreen = () => {
       queryParams.append('ordering', '-id'); 
       
       const response = await api.get(`/api/v1/bo/reservations/?${queryParams.toString()}`);
-      
-      setReservations(response.data.results || []);
-      setFilteredReservations(response.data.results || []); 
-      setCount(response.data.count || 0);
+      const newReservations = response.data.results || [];
+      const newCount = response.data.count || 0;
+
+      if (targetPage > 1) {
+        setReservations(prev => [...prev, ...newReservations]);
+        setFilteredReservations(prev => [...prev, ...newReservations]); // Assuming backend filters apply to paginated results
+      } else {
+        setReservations(newReservations);
+        setFilteredReservations(newReservations);
+      }
+      setCount(newCount);
+      setPage(targetPage); // Update current page to the one successfully fetched
 
     } catch (error) {
-      setReservations([]);
-      setFilteredReservations([]);
-      setCount(0);
+      console.error("Error fetching reservations:", error);
+      if (targetPage === 1) { // Only reset if initial load or refresh of page 1 fails
+        setReservations([]);
+        setFilteredReservations([]);
+        setCount(0);
+      }
+      // Optionally, show an alert or toast message to the user
     } finally {
-      if (showLoader) setIsLoadingData(false);
+      setIsLoadingData(false);
+      setIsLoadingMore(false);
+      setIsRefreshing(false);
     }
-  }, [page, focusedFilter, selectedDateRange, searchKeyWord, filterDate, contextSelectedDate, setIsLoadingData, setReservations, setFilteredReservations, setCount]); // Added dependencies
+  }, [
+    focusedFilter, 
+    selectedDateRange, 
+    searchKeyWord, 
+    filterDate, 
+    contextSelectedDate, 
+    setIsLoadingData, 
+    setReservations, 
+    setFilteredReservations, 
+    setCount, 
+    setPage, 
+    setIsLoadingMore, 
+    setIsRefreshing
+  ]);
   
-  // Fetch reservations on initial load and when dependencies change
+  // Fetch reservations on initial load and when primary filters change
   useEffect(() => {
-    fetchReservations();
-  }, [fetchReservations]); 
+    fetchReservations(1, true); // Always fetch page 1 with initial loader for these changes
+  }, [focusedFilter, selectedDateRange, searchKeyWord, filterDate, contextSelectedDate, fetchReservations]); 
 
-  // Effect for Foreground FCM messages specific to ReservationsScreen
+  const { onForegroundMessage } = useNotifications();
+
+  // Handle foreground FCM messages
   useEffect(() => {
-    const unsubscribe = messaging().onMessage(async remoteMessage => {
-      console.log('[ReservationsScreen] FCM Message received in foreground:', remoteMessage);
-
-      // Prevent refresh if a modal is loading or list is already refreshing
-      if (isLoadingReservationForModal || isLoadingData) {
-        console.log('[ReservationsScreen] Skipping foreground refresh: modal loading or data already loading.');
+    const unsubscribe = onForegroundMessage((remoteMessage) => {
+      if (isLoadingReservationForModal || isLoadingData || isLoadingMore || isRefreshing) {
+        console.log('[ReservationsScreen] Skipping foreground refresh: a loading operation is already in progress.');
         return;
       }
 
-      const notificationData = remoteMessage.data;
-      if (notificationData) {
-        // Determine if it's a new reservation. Adjust 'type' based on your actual notification payload.
-        const isNew = notificationData.type === 'NEW_RESERVATION' || notificationData.event_type === 'RESERVATION_CREATED'; // Example types
-
-        const currentFilters = {
-          focusedFilter,
-          selectedDateRange,
-          filterDate,
-          contextSelectedDate: contextSelectedDate ? format(new Date(contextSelectedDate), "yyyy-MM-dd") : null,
-          searchKeyWord,
-        };
-
-        // reservation_date and reservation_status should come from remoteMessage.data
-        // Ensure your backend sends these in the data payload of the FCM message.
-        const relevantNotificationData = {
-            reservation_date: typeof notificationData.reservation_date === 'string' ? notificationData.reservation_date : undefined, // Expected format: YYYY-MM-DD
-            reservation_status: typeof notificationData.reservation_status === 'string' ? notificationData.reservation_status : undefined, // Expected e.g., "PENDING"
-            type: typeof notificationData.type === 'string' ? notificationData.type : undefined, // Ensure type is also string or undefined
-            // any other data needed for filtering
-        };
-
-        if (checkIfNotificationMatchesFilters(relevantNotificationData, currentFilters, isNew)) {
-          console.log('[ReservationsScreen] Notification matches filters. Refreshing reservations list.');
-          fetchReservations(false); // Refresh without full page loader
-        } else {
-          console.log('[ReservationsScreen] Notification does not match current filters. No refresh.');
-        }
-      }
+      const notificationData = remoteMessage.data || {};
+      fetchReservations(1, false); // Refresh page 1, don't show main loader
     });
-
-    return unsubscribe; // Unsubscribe when component unmounts
+    
+    return unsubscribe;
   }, [
-    fetchReservations, 
-    focusedFilter, 
-    selectedDateRange, 
-    filterDate, 
-    contextSelectedDate, 
-    searchKeyWord,
-    isLoadingReservationForModal, // Add these to prevent stale closures
-    isLoadingData
+    onForegroundMessage, 
+    isLoadingReservationForModal, 
+    isLoadingData, 
+    isLoadingMore,
+    isRefreshing,
+    // focusedFilter, // These are dependencies of fetchReservations, no need to list them here if fetchReservations is stable
+    // selectedDateRange, 
+    // filterDate,
+    // contextSelectedDate,
+    // searchKeyWord,
+    fetchReservations // fetchReservations callback itself is a dependency
   ]);
 
-  // Effect to handle reservation_id from route params
+  // Effect to handle reservation_id from route params for deep linking
   useEffect(() => {
     const reservationIdFromParam = params.reservation_id;
-    console.log(`[ReservationsScreen] useEffect for reservation_id. Param: ${reservationIdFromParam}, Current Processed ID: ${reservationIdBeingProcessed}, Modal Loading: ${isLoadingReservationForModal}, Modal Shown: ${showModal}`);
+    // console.log(`[ReservationsScreen] useEffect for reservation_id. Param: ${reservationIdFromParam}, Current Processed ID: ${reservationIdBeingProcessed}, Modal Loading: ${isLoadingReservationForModal}, Modal Shown: ${showModal}`);
 
     if (reservationIdFromParam) {
       if (reservationIdFromParam !== reservationIdBeingProcessed) {
-        // This is a new ID to process, or we are re-processing an ID that was previously cleared.
-        console.log(`[ReservationsScreen] New or re-processing ID: ${reservationIdFromParam}. Initiating fetch.`);
+        // console.log(`[ReservationsScreen] New or re-processing ID: ${reservationIdFromParam}. Initiating fetch.`);
         
-        // If a modal for a different reservation was somehow stuck open, close it.
         if (showModal && editingClient !== reservationIdFromParam) {
             setShowModal(false);
             setSelectedClient(null);
@@ -468,15 +467,15 @@ const ReservationsScreen = () => {
         }
         
         const fetchAndShowReservation = async (id: string) => {
-          console.log(`[ReservationsScreen] fetchAndShowReservation: Setting isLoadingReservationForModal = true for ID: ${id}`);
+          // console.log(`[ReservationsScreen] fetchAndShowReservation: Setting isLoadingReservationForModal = true for ID: ${id}`);
           setIsLoadingReservationForModal(true);
-          setReservationIdBeingProcessed(id); // Mark this ID as being processed
+          setReservationIdBeingProcessed(id);
 
           try {
             const response = await api.get<Reservation>(`/api/v1/bo/reservations/${id}/`);
             const reservationData = response.data;
             if (reservationData) {
-              console.log(`[ReservationsScreen] Successfully fetched reservation ${id}. Preparing to show modal.`);
+              // console.log(`[ReservationsScreen] Successfully fetched reservation ${id}. Preparing to show modal.`);
               setSelectedClient(reservationData);
               setReservationProgressData({
                 reserveDate: reservationData.date,
@@ -485,50 +484,35 @@ const ReservationsScreen = () => {
               });
               setEditingClient(reservationData.id);
               
-              console.log(`[ReservationsScreen] Setting isLoadingReservationForModal = false, then setShowModal = true for ${id}`);
-              setIsLoadingReservationForModal(false); // Turn off loader
-              setShowModal(true); // Then show modal
+              // console.log(`[ReservationsScreen] Setting isLoadingReservationForModal = false, then setShowModal = true for ${id}`);
+              setIsLoadingReservationForModal(false);
+              setShowModal(true);
             } else {
-              console.warn(`[ReservationsScreen] Reservation with ID ${id} not found by API.`);
+              // console.warn(`[ReservationsScreen] Reservation with ID ${id} not found by API.`);
               Alert.alert("Not Found", `Reservation with ID ${id} not found.`);
               setIsLoadingReservationForModal(false);
-              setReservationIdBeingProcessed(null); // Clear to allow retry if param appears again
+              setReservationIdBeingProcessed(null); 
             }
           } catch (error) {
-            console.error(`[ReservationsScreen] Error fetching reservation ${id}:`, error);
+            // console.error(`[ReservationsScreen] Error fetching reservation ${id}:`, error);
             Alert.alert("Error", `Could not load reservation ${id}. Please try again.`);
             setIsLoadingReservationForModal(false);
-            setReservationIdBeingProcessed(null); // Clear to allow retry
+            setReservationIdBeingProcessed(null);
           }
         };
         
         fetchAndShowReservation(reservationIdFromParam);
 
       } else {
-        // reservationIdFromParam === reservationIdBeingProcessed
-        // This means the effect ran again with the same ID.
-        // If we are not loading and the modal is not shown, it might be a stale state.
-        // However, the modal's onClose should handle clearing params, which then clears reservationIdBeingProcessed.
-        console.log(`[ReservationsScreen] Param ${reservationIdFromParam} is the same as reservationIdBeingProcessed. Modal loading: ${isLoadingReservationForModal}, Modal shown: ${showModal}. No new action unless state is inconsistent.`);
+        // console.log(`[ReservationsScreen] Param ${reservationIdFromParam} is the same as reservationIdBeingProcessed. Modal loading: ${isLoadingReservationForModal}, Modal shown: ${showModal}. No new action unless state is inconsistent.`);
         if (!isLoadingReservationForModal && !showModal && reservationIdBeingProcessed) {
-            // This state is unexpected if processing was successful. Could mean an error occurred
-            // and the modal didn't show, but reservationIdBeingProcessed wasn't cleared.
-            // Or the modal was closed without params being cleared.
-            console.warn(`[ReservationsScreen] Inconsistent state for ${reservationIdBeingProcessed}. Re-initiating fetch.`);
-            // To be safe, clear reservationIdBeingProcessed and let the next effect run cleanly or re-trigger.
-            // This might be too aggressive, but helps recover from stuck states.
-            // Consider if this re-fetch is desired or if reservationIdBeingProcessed should have been cleared earlier.
-            // For now, let's log and observe. A manual re-trigger might be:
-            // setReservationIdBeingProcessed(null); // This would cause the next run of useEffect to treat it as new.
+            // console.warn(`[ReservationsScreen] Inconsistent state for ${reservationIdBeingProcessed}. Consider re-initiating fetch or clearing state.`);
         }
       }
     } else {
-      // No reservationIdFromParam in the route.
-      // If we were processing an ID, it means the param was cleared (e.g., by modal close).
       if (reservationIdBeingProcessed) {
-        console.log(`[ReservationsScreen] reservation_id param is now undefined. Clearing reservationIdBeingProcessed: ${reservationIdBeingProcessed}`);
+        // console.log(`[ReservationsScreen] reservation_id param is now undefined. Clearing reservationIdBeingProcessed: ${reservationIdBeingProcessed}`);
         setReservationIdBeingProcessed(null);
-        // Ensure modal is closed if it was associated with the cleared ID
         if (showModal && editingClient === reservationIdBeingProcessed) {
             setShowModal(false);
             setSelectedClient(null);
@@ -536,22 +520,18 @@ const ReservationsScreen = () => {
         }
       }
     }
-  }, [params.reservation_id, reservationIdBeingProcessed, router]); 
+  }, [params.reservation_id, reservationIdBeingProcessed, router, showModal, editingClient]); // Added showModal and editingClient
 
 
-  // Save column preferences when they change
-  useEffect(() => {
-    saveColumnsToStorage(columns)
-  }, [columns])
-
-  // Effect to update search results
+  // This useEffect for searchResults and searched state might be part of an unused client-side search feature.
+  // FlatList directly uses `filteredReservations`. If this is unused, consider removing.
   useEffect(() => {
     if (!searched) {
       setSearchResults(reservations)
     }
   }, [reservations, searched])
 
-  // Effect to update date range display
+  // Effect to update date range display string
   useEffect(() => {
     if (selectedDateRange.start && selectedDateRange.end) {
       const formattedStart = format(selectedDateRange.start, "dd/MM/yyyy")
@@ -564,10 +544,11 @@ const ReservationsScreen = () => {
     }
      else {
       setSelectingDay("")
+
     }
   }, [selectedDateRange, contextSelectedDate, filterDate])
 
-  // Effect to update reservation progress data when client changes
+  // Effect to update reservation progress data when selectedClient changes
   useEffect(() => {
     if (selectedClient) {
       setReservationProgressData({
@@ -624,19 +605,16 @@ const ReservationsScreen = () => {
       await api.post('/api/v1/bo/reservations/', payload);
 
       setShowAddReservation(false);
-      await fetchReservations(); // Refresh list and update count
+      fetchReservations(1, true); // Refresh list (page 1) and update count
 
 
     } catch (error) {
       console.error("Error creating reservation:", error);
       let errorMessage = "Failed to create reservation. Please try again.";
       if (axios.isAxiosError(error) && error.response && error.response.data) {
-        // You might want to parse error.response.data for a more specific message
         errorMessage = `Failed to create reservation: ${JSON.stringify(error.response.data)}`;
       }
       Alert.alert("Error", errorMessage);
-      // Ensure loading state is reset if not handled by fetchReservations' finally block
-      // setIsLoading(false); 
     }
   };
 
@@ -644,20 +622,25 @@ const ReservationsScreen = () => {
   const handleDateClick = (range: { start: Date; end: Date }): void => {
     setSelectedDateRange(range)
     setFocusedDate(false)
+    // fetchReservations(1, true) will be triggered by useEffect watching selectedDateRange
   }
 
   const setDefaultFilter = (): void => {
+    setIsLoadingData(true) // Show loader while resetting filters
     setFocusedFilter("")
-    setSelectingDay("")
-    setFilterDate(!filterDate)
+    // selectingDay is UI state, reset it.
+    setSelectingDay("") 
+    // Toggle filterDate, which will trigger useEffect for fetchReservations if it's a dependency.
+    // Or, if filterDate directly impacts query, ensure fetch is called.
+    setFilterDate(prev => !prev) 
     setSelectedDateRange({ start: null, end: null })
+    // fetchReservations(1, true) will be triggered by useEffect watching these filter states
   }
 
   const searchFilter = (text: string): void => {
     const keyword = text.toLowerCase()
     setSearchKeyWord(keyword)
-    setPage(1) // Reset to first page when searching
-    // fetchReservations will be triggered by the useEffect that watches searchKeyWord
+    // fetchReservations(1, true) will be triggered by useEffect watching searchKeyWord
   }
 
   const EditClient = (id: string): void => {
@@ -675,7 +658,8 @@ const ReservationsScreen = () => {
       Alert.alert("Error", "No reservation selected for update.");
       return;
     }
-    setIsLoadingData(true); // Indicate loading for the update operation
+    // Consider a specific loader for this operation if desired, e.g. setIsLoadingData(true)
+    // For now, fetchReservations will handle its own loading indicators.
     try {
       const payload = {
         full_name: updatedReservation.full_name,
@@ -708,20 +692,19 @@ const ReservationsScreen = () => {
       
       setShowModal(false);
       setEditingClient(undefined);
-      await fetchReservations(true); // Refetch reservations without main loader
+      // Refresh the current page or page 1. Page 1 is safer to reflect changes broadly.
+      fetchReservations(1, false); // Refetch page 1 without main loader
     } catch (error) {
       console.error("Error updating reservation:", error);
       let errorMessage = "Failed to update reservation.";
       if (axios.isAxiosError(error) && error.response && error.response.data) {
-        // Construct a more detailed error message if possible
         const errorData = error.response.data;
         const messages = Object.entries(errorData).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`);
         errorMessage += `\n${messages.join('\n')}`;
       }
       Alert.alert("Error", errorMessage);
-    } finally {
-      setIsLoadingData(false);
-    }
+    } 
+    // finally { setIsLoadingData(false); } // Only if a specific loader was set here
   }
 
   const showStatusModification = (id: string): void => {
@@ -737,46 +720,43 @@ const ReservationsScreen = () => {
   }
 
   const confirmStatusUpdate = (): void => {
+    // This is a client-side update example. For server changes, call API then refetch.
+    // For a real app, this should be an API call.
+    // Example: api.patch(`/api/v1/bo/reservations/${idStatusModification}/`, { status: pendingStatus })
+    // .then(() => fetchReservations(page, false)) // Refresh current page or page 1
+    // .catch(err => console.error(err));
+
     setReservations(reservations.map((r) => (r.id === idStatusModification ? { ...r, loading: true } : r)))
 
-    // In a real app, you would call an API here
     setTimeout(() => {
       setReservations(
         reservations.map((r) => (r.id === idStatusModification ? { ...r, status: pendingStatus, loading: false } : r)),
       )
-      setFilteredReservations(
-        reservations.map((r) => (r.id === idStatusModification ? { ...r, status: pendingStatus, loading: false } : r)),
+      setFilteredReservations( // Also update filteredReservations if it's derived or separate
+        filteredReservations.map((r) => (r.id === idStatusModification ? { ...r, status: pendingStatus, loading: false } : r)),
       )
       setShowStatusConfirm(false)
+      // After successful API call and state update, potentially call:
+      // fetchReservations(page, false); // To ensure data consistency if other fields change on backend
     }, 500)
   }
 
   const sendReview = (id: string): void => {
-    // In a real app, you would call an API here
+    // In a real app, this would be an API call.
     Alert.alert("Review Link Sent", `A review link has been sent to the customer with reservation #${id}`)
     setToBeReviewedRes(id)
   }
 
   const handleDeleteReservation = async (id: string) => {
-
-    // Consider setting a specific loading state for the item being deleted if desired,
-    // or rely on the general loader from fetchReservations.
-    // For this example, we'll show a general loading state via fetchReservations.
-
     try {
       await api.delete(`/api/v1/bo/reservations/${id}/`);
-      
-      setShowDeleteConfirm(false); // Close the confirmation modal first
-      
-      // Refresh the list of reservations. 
-      // fetchReservations(true) will show a loader and update the list.
-      await fetchReservations(true); 
-
+      setShowDeleteConfirm(false);
+      // Refresh the list, fetch page 1 to ensure consistency.
+      fetchReservations(1, true); 
     } catch (error) {
       console.error(`Error deleting reservation ${id}:`, error);
       let errorMessage = "Failed to delete reservation. Please try again.";
       if (axios.isAxiosError(error) && error.response && error.response.data) {
-        // Attempt to provide a more specific error message from the API response
         const errorData = error.response.data;
         if (typeof errorData === 'string') {
           errorMessage = `Failed to delete reservation: ${errorData}`;
@@ -789,7 +769,7 @@ const ReservationsScreen = () => {
         errorMessage = `Failed to delete reservation: ${error.message}`;
       }
       Alert.alert("Error", errorMessage);
-      setShowDeleteConfirm(false); // Ensure modal is closed on error as well
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -801,21 +781,23 @@ const ReservationsScreen = () => {
 
   // Filter reservations based on status
   const filterByStatus = (status: string) => {
+    setIsLoadingData(true)
     setFocusedFilter(status)
-    setPage(1) // Reset to first page when filtering
-    if (status) {
-      const filtered = reservations.filter((r) => r.status === status)
-      setFilteredReservations(filtered)
-    } else {
-      setFilteredReservations(reservations)
-    }
+    // fetchReservations(1, true) will be triggered by useEffect watching focusedFilter
     setShowFilterModal(false)
   }
 
     useEffect(() => {
-      // router.replace('/select-restaurant'); 
+      // router.replace('/select-restaurant'); // Commented out, potentially for initial setup or redirection logic.
     }
     , []);
+
+  const handleLoadMore = useCallback(() => {
+    if (!isLoadingMore && filteredReservations.length < count) {
+      fetchReservations(page + 1, false); // Fetch next page, don't show initial loader
+    }
+  }, [isLoadingMore, filteredReservations.length, count, page, fetchReservations]);
+
   // Render reservation card
   const renderReservationCard = ({ item }: { item: Reservation }) => (
     <ReservationCard
@@ -839,12 +821,27 @@ const ReservationsScreen = () => {
     );
   }
 
+  // Show main loader if isLoadingData is true AND there are no reservations yet (first load)
+  // Or if specifically desired for all page 1 reloads.
+  // Current logic: isLoadingData shows a full screen loader.
+  // if (isLoadingData && reservations.length === 0) {
+  //   return (
+  //     <SafeAreaView style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+  //       <ActivityIndicator size="large" color={colors.primary} />
+  //       <Text style={[styles.loadingText, { color: colors.text, marginTop: 10 }]}>
+  //         Loading reservations...
+  //       </Text>
+  //     </SafeAreaView>
+  //   );
+  // }
+
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
       {/* Header */}
-      <View style={styles.header}>
+      {/* <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>Reservations</Text>
         <View style={styles.headerButtons}>
           <TouchableOpacity
@@ -854,7 +851,7 @@ const ReservationsScreen = () => {
             <Text style={styles.addButtonText}>Add Reservation</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </View> */}
       {/* Search and Filter Bar */}
       <View style={styles.searchFilterContainer}>
         <View style={styles.searchContainer}>
@@ -870,150 +867,213 @@ const ReservationsScreen = () => {
       <Text style={[styles.filterSectionTitle, { color: colors.text }]}>
         Status
       </Text>
-      <View style={styles.filterButtonsContainer}>
-        <TouchableOpacity
-          style={[
-            styles.filterStatusButton,
-            focusedFilter === "FULFILLED" && styles.activeFilterButton,
-            {
-              backgroundColor:
-                focusedFilter === "FULFILLED" ? colors.primary : colors.card,
-            },
-          ]}
-          onPress={() => filterByStatus("FULFILLED")}
-        >
-          <Text
-            style={{
-              color: focusedFilter === "FULFILLED" ? "#fff" : colors.text,
-            }}
+      <ScrollView 
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ height: 80 }} // Example: enough for buttons + padding
+        contentContainerStyle={styles.filterButtonsScrollContainer}
+      >
+        <View style={styles.filterButtonsContainer}>
+          {/* All Button */}
+          <TouchableOpacity
+            style={[
+              styles.filterStatusButton,
+              focusedFilter === "" && !selectingDay && !filterDate && styles.activeFilterButton,
+              {
+                backgroundColor:
+                  focusedFilter === "" && !selectingDay && !filterDate
+                    ? colors.primary
+                    : colors.card,
+              },
+            ]}
+            onPress={setDefaultFilter}
           >
-            Fulfilled
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={{
+                color:
+                  focusedFilter === "" && !selectingDay && !filterDate ? colors.text : colors.text,
+              }}
+            >
+              All
+            </Text>
+            {focusedFilter === "" && !selectingDay && !filterDate && count > 0 && !isLoadingData && !isRefreshing && (
+              <View style={(focusedFilter === "" && !selectingDay && !filterDate) ? styles.badgeContainerActive : styles.badgeContainerInactive}>
+                <Text style={(focusedFilter === "" && !selectingDay && !filterDate) ? styles.badgeTextActive : styles.badgeTextInactive}>
+                  {count > 99 ? '99+' : count}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          
+          {/* Fulfilled Button */}
+          <TouchableOpacity
+            style={[
+              styles.filterStatusButton,
+              focusedFilter === "FULFILLED" && styles.activeFilterButton,
+              {
+                backgroundColor:
+                  focusedFilter === "FULFILLED" ? colors.primary : colors.card,
+              },
+            ]}
+            onPress={() => filterByStatus("FULFILLED")}
+          >
+            <Text
+              style={{
+                color: focusedFilter === "FULFILLED" ? colors.text : colors.text,
+              }}
+            >
+              Fulfilled
+            </Text>
+            {focusedFilter === "FULFILLED" && count > 0 && !isLoadingData && !isRefreshing && (
+              <View style={focusedFilter === "FULFILLED" ? styles.badgeContainerActive : styles.badgeContainerInactive}>
+                <Text style={focusedFilter === "FULFILLED" ? styles.badgeTextActive : styles.badgeTextInactive}>
+                  {count > 99 ? '99+' : count}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.filterStatusButton,
-            focusedFilter === "SEATED" && styles.activeFilterButton,
-            {
-              backgroundColor:
-                focusedFilter === "SEATED" ? colors.primary : colors.card,
-            },
-          ]}
-          onPress={() => filterByStatus("SEATED")}
-        >
-          <Text
-            style={{
-              color: focusedFilter === "SEATED" ? "#fff" : colors.text,
-            }}
+          {/* Seated Button */}
+          <TouchableOpacity
+            style={[
+              styles.filterStatusButton,
+              focusedFilter === "SEATED" && styles.activeFilterButton,
+              {
+                backgroundColor:
+                  focusedFilter === "SEATED" ? colors.primary : colors.card,
+              },
+            ]}
+            onPress={() => filterByStatus("SEATED")}
           >
-            Seated
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={{
+                color: focusedFilter === "SEATED" ? colors.text : colors.text,
+              }}
+            >
+              Seated
+            </Text>
+            {focusedFilter === "SEATED" && count > 0 && !isLoadingData && !isRefreshing && (
+              <View style={focusedFilter === "SEATED" ? styles.badgeContainerActive : styles.badgeContainerInactive}>
+                <Text style={focusedFilter === "SEATED" ? styles.badgeTextActive : styles.badgeTextInactive}>
+                  {count > 99 ? '99+' : count}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.filterStatusButton,
-            focusedFilter === "APPROVED" && styles.activeFilterButton,
-            {
-              backgroundColor:
-                focusedFilter === "APPROVED" ? colors.primary : colors.card,
-            },
-          ]}
-          onPress={() => filterByStatus("APPROVED")}
-        >
-          <Text
-            style={{
-              color: focusedFilter === "APPROVED" ? "#fff" : colors.text,
-            }}
+          {/* Confirmed Button */}
+          <TouchableOpacity
+            style={[
+              styles.filterStatusButton,
+              focusedFilter === "APPROVED" && styles.activeFilterButton,
+              {
+                backgroundColor:
+                  focusedFilter === "APPROVED" ? colors.primary : colors.card,
+              },
+            ]}
+            onPress={() => filterByStatus("APPROVED")}
           >
-            Confirmed
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={{
+                color: focusedFilter === "APPROVED" ? colors.text : colors.text,
+              }}
+            >
+              Confirmed
+            </Text>
+            {focusedFilter === "APPROVED" && count > 0 && !isLoadingData && !isRefreshing && (
+              <View style={focusedFilter === "APPROVED" ? styles.badgeContainerActive : styles.badgeContainerInactive}>
+                <Text style={focusedFilter === "APPROVED" ? styles.badgeTextActive : styles.badgeTextInactive}>
+                  {count > 99 ? '99+' : count}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.filterStatusButton,
-            focusedFilter === "CANCELED" && styles.activeFilterButton,
-            {
-              backgroundColor:
-                focusedFilter === "CANCELED" ? colors.primary : colors.card,
-            },
-          ]}
-          onPress={() => filterByStatus("CANCELED")}
-        >
-          <Text
-            style={{
-              color: focusedFilter === "CANCELED" ? "#fff" : colors.text,
-            }}
+          {/* Cancelled Button */}
+          <TouchableOpacity
+            style={[
+              styles.filterStatusButton,
+              focusedFilter === "CANCELED" && styles.activeFilterButton,
+              {
+                backgroundColor:
+                  focusedFilter === "CANCELED" ? colors.primary : colors.card,
+              },
+            ]}
+            onPress={() => filterByStatus("CANCELED")}
           >
-            Cancelled
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={{
+                color: focusedFilter === "CANCELED" ? colors.text : colors.text,
+              }}
+            >
+              Cancelled
+            </Text>
+            {focusedFilter === "CANCELED" && count > 0 && !isLoadingData && !isRefreshing && (
+              <View style={focusedFilter === "CANCELED" ? styles.badgeContainerActive : styles.badgeContainerInactive}>
+                <Text style={focusedFilter === "CANCELED" ? styles.badgeTextActive : styles.badgeTextInactive}>
+                  {count > 99 ? '99+' : count}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.filterStatusButton,
-            focusedFilter === "PENDING" && styles.activeFilterButton,
-            {
-              backgroundColor:
-                focusedFilter === "PENDING" ? colors.primary : colors.card,
-            },
-          ]}
-          onPress={() => filterByStatus("PENDING")}
-        >
-          <Text
-            style={{
-              color: focusedFilter === "PENDING" ? "#fff" : colors.text,
-            }}
+          {/* Pending Button */}
+          <TouchableOpacity
+            style={[
+              styles.filterStatusButton,
+              focusedFilter === "PENDING" && styles.activeFilterButton,
+              {
+                backgroundColor:
+                  focusedFilter === "PENDING" ? colors.primary : colors.card,
+              },
+            ]}
+            onPress={() => filterByStatus("PENDING")}
           >
-            Pending
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={{
+                color: focusedFilter === "PENDING" ? colors.text : colors.text,
+              }}
+            >
+              Pending
+            </Text>
+            {focusedFilter === "PENDING" && count > 0 && !isLoadingData && !isRefreshing && (
+              <View style={focusedFilter === "PENDING" ? styles.badgeContainerActive : styles.badgeContainerInactive}>
+                <Text style={focusedFilter === "PENDING" ? styles.badgeTextActive : styles.badgeTextInactive}>
+                  {count > 99 ? '99+' : count}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.filterStatusButton,
-            focusedFilter === "NO_SHOW" && styles.activeFilterButton,
-            {
-              backgroundColor:
-                focusedFilter === "NO_SHOW" ? colors.primary : colors.card,
-            },
-          ]}
-          onPress={() => filterByStatus("NO_SHOW")}
-        >
-          <Text
-            style={{
-              color: focusedFilter === "NO_SHOW" ? "#fff" : colors.text,
-            }}
+          {/* No Show Button */}
+          <TouchableOpacity
+            style={[
+              styles.filterStatusButton,
+              focusedFilter === "NO_SHOW" && styles.activeFilterButton,
+              {
+                backgroundColor:
+                  focusedFilter === "NO_SHOW" ? colors.primary : colors.card,
+              },
+            ]}
+            onPress={() => filterByStatus("NO_SHOW")}
           >
-            No Show
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.filterStatusButton,
-            focusedFilter === "" && !selectingDay && !filterDate && styles.activeFilterButton,
-            {
-              backgroundColor:
-                focusedFilter === "" && !selectingDay && !filterDate
-                  ? colors.primary
-                  : colors.card,
-            },
-          ]}
-          onPress={setDefaultFilter}
-        >
-          <Text
-            style={{
-              color:
-                focusedFilter === "" && !selectingDay && !filterDate ? "#fff" : colors.text,
-            }}
-          >
-            All
-          </Text>
-        </TouchableOpacity>
-      </View>
+            <Text
+              style={{
+                color: focusedFilter === "NO_SHOW" ? colors.text : colors.text,
+              }}
+            >
+              No Show
+            </Text>
+            {focusedFilter === "NO_SHOW" && count > 0 && !isLoadingData && !isRefreshing && (
+              <View style={focusedFilter === "NO_SHOW" ? styles.badgeContainerActive : styles.badgeContainerInactive}>
+                <Text style={focusedFilter === "NO_SHOW" ? styles.badgeTextActive : styles.badgeTextInactive}>
+                  {count > 99 ? '99+' : count}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
       {/* Active Filters Display */}
       {focusedFilter || selectingDay ? (
         <View style={styles.activeFiltersContainer}>
@@ -1022,7 +1082,7 @@ const ReservationsScreen = () => {
           </Text>
           <ScrollView
             horizontal
-            showsHorizontalScrollIndicator={false}
+            showsHorizontalScrollIndicator={true}
             style={styles.filtersScroll}
           >
             {focusedFilter ? (
@@ -1043,54 +1103,41 @@ const ReservationsScreen = () => {
                 style={[styles.filterChip, { backgroundColor: colors.card }]}
               >
                 <Text style={{ color: colors.text }}>{selectingDay}</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    setSelectingDay("");
-                    setSelectedDateRange({ start: null, end: null });
-                  }}
-                >
-                  <Feather name="x" size={16} color={colors.text} />
-                </TouchableOpacity>
               </View>
             ) : null}
           </ScrollView>
         </View>
       ) : null}
       {/* Reservations List */}
-      {isLoadingData ? ( // Show main loader only if no data yet
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          {/* <Text style={[styles.loadingText, { color: colors.text }]}>Loading reservations...</Text> */}
-        </View>
-      ) : (
-        <FlatList
-          data={filteredReservations}
-          renderItem={renderReservationCard}
-          onRefresh={() => fetchReservations()} // Fetch without main loader
-          refreshing={isLoadingData} // Use isLoadingData for refresh state
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContainer}
-          ListEmptyComponent={
+      {/* If isLoadingData for a reload (not first load), FlatList can show its own header spinner via 'refreshing' prop */}
+      {/* The main full-screen loader is handled above for initial empty load */}
+      <FlatList
+        data={filteredReservations}
+        renderItem={renderReservationCard}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContainer}
+        onRefresh={() => fetchReservations(1, false)} // Fetch page 1, don't show main loader, rely on 'refreshing'
+        refreshing={isRefreshing} // Use isRefreshing for pull-to-refresh indicator
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5} // Adjust as needed
+        ListFooterComponent={
+          isLoadingMore ? (
+            <View style={{ paddingVertical: 20 }}>
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          ) : null
+        }
+        ListEmptyComponent={
+          !isLoadingData && !isRefreshing ? ( // Show empty only if not actively loading initial or refreshing
             <View style={styles.emptyContainer}>
               <Text style={[styles.emptyText, { color: colors.text }]}>
                 No reservations found.
               </Text>
             </View>
-          }
-        />
-      )}
-      {/* Pagination */}
-      {(count > 10 && !isLoadingData) && (
-        <View style={styles.paginationContainer}>
-          <Pagination
-            setPage={setPage}
-            currentPage={page}
-            totalItems={count}
-            itemsPerPage={10}
-            isDarkMode={isDarkMode}
-          />
-        </View>
-      )}
+          ) : null
+        }
+      />
+      {/* Removed total reservations count display from here */}
       {/* Add Reservation Modal */}
       {/* <Modal
         visible={showAddReservation}
@@ -1143,6 +1190,7 @@ const ReservationsScreen = () => {
               </Text>
               <TouchableOpacity
                 style={[
+
                   styles.datePickerButton,
                   { backgroundColor: colors.card, borderColor: colors.border },
                 ]}
@@ -1161,10 +1209,7 @@ const ReservationsScreen = () => {
             </ScrollView>
 
             <TouchableOpacity
-              style={[
-                styles.resetButton,
-                { backgroundColor: colors.background },
-              ]}
+              style={[styles.resetButton, { backgroundColor: colors.background }]}
               onPress={() => {
                 setDefaultFilter();
                 setShowFilterModal(false);
@@ -1185,12 +1230,14 @@ const ReservationsScreen = () => {
         <View style={styles.modalOverlay}>
           <View
             style={[
+
               styles.calendarModalContainer,
               { backgroundColor: colors.card },
             ]}
           >
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>
+
                 Select Date Range
               </Text>
               <TouchableOpacity onPress={() => setFocusedDate(false)}>
@@ -1222,16 +1269,12 @@ const ReservationsScreen = () => {
             setShowModal(false);
             setEditingClient(undefined);
             setSelectedClient(null);
-            // Clear reservation_id from route params.
-            // This will trigger the useEffect above, which will then clear reservationIdBeingProcessed.
             if (params.reservation_id) {
-              console.log(`[ReservationsScreen] EditReservationModal onClose: Clearing reservation_id param (${params.reservation_id}) from router.`);
+              // console.log(`[ReservationsScreen] EditReservationModal onClose: Clearing reservation_id param (${params.reservation_id}) from router.`);
               router.setParams({ reservation_id: undefined });
             } else {
-                // If param was already undefined, but modal is closing, ensure processed ID is also cleared.
-                // This case should ideally be handled by the useEffect when param becomes undefined.
                 if(reservationIdBeingProcessed) {
-                    console.log(`[ReservationsScreen] EditReservationModal onClose: Param already undefined, ensuring reservationIdBeingProcessed (${reservationIdBeingProcessed}) is cleared.`);
+                    // console.log(`[ReservationsScreen] EditReservationModal onClose: Param already undefined, ensuring reservationIdBeingProcessed (${reservationIdBeingProcessed}) is cleared.`);
                     setReservationIdBeingProcessed(null);
                 }
             }
@@ -1267,15 +1310,22 @@ const ReservationsScreen = () => {
         isDangerous={true}
         isDarkMode={isDarkMode}
       />
+      {/* Floating Action Button */}
+      <TouchableOpacity
+        style={[styles.fab, { backgroundColor: colors.primary }]}
+        onPress={() => setShowAddReservation(true)}
+      >
+        <Feather name="plus" size={24} color="white" />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: ReturnType<typeof useTheme>['colors']) => StyleSheet.create({
   container: {
     flex: 1,
     padding: 10,
-    paddingBottom:0,
+    paddingBottom:0, // Consider if paddingBottom should be 0 or more for footer space
   },
   header: {
     flexDirection: "row",
@@ -1333,9 +1383,10 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   listContainer: {
-    paddingBottom: 0,
+    paddingBottom: 0, // Ensure enough space if there's a tab bar or other elements below
+    minHeight: 400, // Ensure it fills the screen if no items
   },
-  loadingContainer: {
+  loadingContainer: { // This style is for the initial full-screen loader
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
@@ -1356,6 +1407,7 @@ const styles = StyleSheet.create({
   },
   paginationContainer: {
     marginVertical: 6,
+    paddingBottom: 10, // Add some padding if it's the last element
   },
   modalOverlay: {
     flex: 1,
@@ -1392,16 +1444,27 @@ const styles = StyleSheet.create({
     marginTop: 2,
     marginBottom: 3,
   },
+  filterButtonsScrollContainer: { 
+    paddingVertical: 4, // Adjust padding to center buttons if ScrollView height is fixed
+    paddingLeft: 4, 
+    paddingRight: 4, 
+    // Remove fixed height here if ScrollView has it, or make them consistent
+  },
   filterButtonsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginBottom: 8,
+    flexDirection: "row", 
+    // Removed marginBottom: 26 if ScrollView height is managed
+    // maxHeight: 80, // This can be removed if ScrollView height dictates overall
   },
   filterStatusButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
-    margin: 4,
+    marginHorizontal: 4, // Use marginHorizontal for spacing between buttons
+    marginVertical: 4, // Keep vertical margin if buttons were to wrap (though they won't now)
+    flexDirection: 'row', 
+    alignItems: 'center',   
+    justifyContent: 'center',
+    height: 40, // Ensure consistent height for all buttons
   },
   activeFilterButton: {
     borderWidth: 0,
@@ -1432,6 +1495,52 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 8,
     alignItems: "center",
+  },
+  badgeContainerActive: { 
+    backgroundColor: colors.card, 
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 6,
+    minWidth: 20, 
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeTextActive: { 
+    color: colors.primary, 
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  badgeContainerInactive: { 
+    backgroundColor: colors.primary, 
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 6,
+    minWidth: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeTextInactive: { 
+    color: colors.text, // Assuming colors.buttonText is white or contrasts with primary
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  fab: {
+    position: 'absolute',
+    margin: 16,
+    right: 5,
+    bottom: 5,
+    width: 45,
+    height: 45,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8, // Android shadow
+    shadowColor: '#000', // iOS shadow
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
 })
 

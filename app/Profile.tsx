@@ -207,6 +207,7 @@ export default function ModalScreen() {
   const [showPasswordModal, setShowPasswordModal] = useState(false)
 
   const handleLogout = async () => {
+    console.log("Logging out...")
     await logout()
   }
 

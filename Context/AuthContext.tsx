@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from "@/api/axiosInstance"; // Import the configured axios instance
 import messaging from '@react-native-firebase/messaging';
 import { Platform } from "react-native";
+import { useRouter } from "expo-router";
 
 // Define the shape of your auth state and context
 interface User {
@@ -50,6 +51,7 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const router = useRouter();
   const [authState, setAuthState] = useState<AuthState>({
     accessToken: null,
     refreshToken: null,
@@ -108,12 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log("Failed to get FCM token");
       }
     } catch (error) {
-      if (error && typeof error === 'object' && 'response' in error && error.response && typeof error.response === 'object' && 'data' in error.response) {
-        // @ts-ignore
-        console.log("Error registering device for notifications:", error.response.data);
-      } else {
-        console.log("Error registering device for notifications:", error);
-      }
+      
     }
   };
 
@@ -204,6 +201,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isLoading: false, // Set to false as logout is complete
       user: null,
     });
+
+    router.replace('/login');
   };
 
   const refreshAccessToken = async (): Promise<boolean> => {

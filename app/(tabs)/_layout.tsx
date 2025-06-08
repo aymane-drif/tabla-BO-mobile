@@ -93,7 +93,7 @@ function TabLayoutContent() {
             title: "Reservations",
           }}
         />
-        <Tabs.Screen
+        {/* <Tabs.Screen
           name="tables"
           options={{
             title: "Tables",
@@ -123,7 +123,7 @@ function TabLayoutContent() {
             title: "Profile",
             href: null, // Hide this tab but keep the screen accessible
           }}
-        />
+        /> */}
       </Tabs>
 
       {/* Conditionally render CalendarModal to ensure it mounts fresh with new props */}

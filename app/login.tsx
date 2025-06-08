@@ -13,7 +13,8 @@ import {
   useColorScheme,
   KeyboardAvoidingView,
   Platform,
-  ScrollView 
+  ScrollView, 
+  Linking
 } from 'react-native';
 import { useAuth } from '@/Context/AuthContext';
 import { useRouter, Stack } from 'expo-router';
@@ -134,22 +135,22 @@ const LoginScreen = () => {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          {/* <TouchableOpacity 
             style={styles.linkContainer}
             onPress={() => Alert.alert('Forgot Password', 'Forgot password functionality to be implemented.')}
           >
             <Text style={[styles.linkText, { color: colors.primary }]}>Forgot Password?</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
 
-          <View style={styles.footerLinksContainer}>
-            <TouchableOpacity onPress={() => Alert.alert("Terms of Service", "Navigate to Terms of Service.")}>
+            <View style={styles.footerLinksContainer}>
+            <TouchableOpacity onPress={() => Linking.openURL('https://restaurant.tabla.ma/mentions-legales/')}>
               <Text style={[styles.footerLinkText, { color: colors.textMuted }]}>Terms of Service</Text>
             </TouchableOpacity>
             <Text style={[styles.footerLinkSeparator, { color: colors.textMuted }]}> | </Text>
-            <TouchableOpacity onPress={() => Alert.alert("Privacy Policy", "Navigate to Privacy Policy.")}>
+            <TouchableOpacity onPress={() => Linking.openURL('https://restaurant.tabla.ma/privacy-policy/')}>
               <Text style={[styles.footerLinkText, { color: colors.textMuted }]}>Privacy Policy</Text>
             </TouchableOpacity>
-          </View>
+            </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

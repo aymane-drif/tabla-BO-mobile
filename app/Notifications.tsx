@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, use } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator, Button, Platform, Linking } from 'react-native'; // Added Linking
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import {useFocusEffect } from '@react-navigation/native';
 import NotificationItem from '../components/notification/NotificationItem';
 import { useTheme } from '../Context/ThemeContext';
 import { api } from '@/api/axiosInstance';
-import messaging from '@react-native-firebase/messaging';
 import { useAuth } from '../Context/AuthContext'; // Import useAuth
 import { ErrorBoundaryProps, useRouter as useExpoRouter } from 'expo-router';
-import { PermissionsAndroid } from 'react-native';
 import { Feather } from '@expo/vector-icons'; // For icons in permission alert
+import { useNotifications } from '@/Context/NotificationContext';
 
 export type NotificationType = { // Assuming this structure based on dummy data and web app
   user_notification_id: number;
@@ -46,9 +45,6 @@ interface NotificationCountType {
 const PAGE_SIZE = 20;
 type ActiveTab = 'unread' | 'read';
 
-// Define PermissionStatus type
-type PermissionStatus = 'granted' | 'denied' | 'blocked' | 'undetermined';
-
 
 export function ErrorBoundary(props: ErrorBoundaryProps) {
   return (
@@ -80,76 +76,26 @@ const Notifications = () => {
   const { colors } = useTheme();
   const styles = getStyles(colors);
   const router = useExpoRouter();
-  const { isAuthenticated, registerDeviceForNotifications } = useAuth();
+  const { isAuthenticated, restaurantId,registerDeviceForNotifications } = useAuth();
+
+    // Replace individual state with context
+  const { 
+    notificationCounts, 
+    permissionStatus: notificationPermissionStatus,
+    checkAndRequestPermissions,
+    fetchNotificationCounts,
+    onForegroundMessage
+  } = useNotifications();
   const [notifications, setNotifications] = useState<NotificationType[]>([]);
   const [activeTab, setActiveTab] = useState<ActiveTab>('unread');
   
   const [isLoading, setIsLoading] = useState(false);
   const [isPageLoading, setIsPageLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notificationCounts, setNotificationCounts] = useState<NotificationCountType>({ read: 0, total: 0, unread: 0 });
   
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
-  const [notificationPermissionStatus, setNotificationPermissionStatus] = useState<PermissionStatus>('undetermined');
   const initialLoadDone = useRef(false); // To track initial permission check
-
-  const checkAndRequestPermissions = useCallback(async (requestIfDenied = false) => {
-    let currentStatus: PermissionStatus = 'undetermined';
-    if (Platform.OS === 'ios') {
-      const authStatus = await messaging().hasPermission();
-      if (authStatus === messaging.AuthorizationStatus.AUTHORIZED || authStatus === messaging.AuthorizationStatus.PROVISIONAL) {
-        currentStatus = 'granted';
-      } else if (authStatus === messaging.AuthorizationStatus.DENIED) {
-        currentStatus = 'denied';
-      } else { // NOT_DETERMINED or other
-        currentStatus = 'undetermined';
-      }
-
-      if ((currentStatus === 'denied' || currentStatus === 'undetermined') && requestIfDenied) {
-        const requestedAuthStatus = await messaging().requestPermission();
-        if (requestedAuthStatus === messaging.AuthorizationStatus.AUTHORIZED || requestedAuthStatus === messaging.AuthorizationStatus.PROVISIONAL) {
-          currentStatus = 'granted';
-        } else {
-          currentStatus = 'denied'; // User denied or did not grant
-        }
-      }
-    } else if (Platform.OS === 'android') {
-      const granted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
-      if (granted) {
-        currentStatus = 'granted';
-      } else {
-        currentStatus = 'denied'; // Initially assume denied if not explicitly granted
-      }
-
-      if (currentStatus === 'denied' && requestIfDenied) {
-        const permissionRequestResult = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
-        if (permissionRequestResult === PermissionsAndroid.RESULTS.GRANTED) {
-          currentStatus = 'granted';
-        } else if (permissionRequestResult === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-          currentStatus = 'blocked';
-        } else {
-          currentStatus = 'denied';
-        }
-      }
-    }
-    setNotificationPermissionStatus(currentStatus);
-    if (currentStatus === 'granted' && isAuthenticated) {
-       registerDeviceForNotifications(); // Register if permission granted
-    }
-    return currentStatus;
-  }, [isAuthenticated, registerDeviceForNotifications]);
-
-
-  const fetchNotificationCounts = useCallback(async () => {
-    try {
-      const response = await api.get<NotificationCountType>('/api/v1/notifications/count/');
-      setNotificationCounts(response.data || { read: 0, total: 0, unread: 0 });
-    } catch (err) {
-      console.error('Failed to fetch notification counts:', err);
-      // setError('Failed to load notification counts.'); // Optionally show error for counts
-    }
-  }, []);
 
   const fetchNotifications = useCallback(async (page: number, tab: ActiveTab, isRefresh: boolean = false) => {
     if (isRefresh) {
@@ -183,109 +129,22 @@ const Notifications = () => {
     
   }, []);
 
-  // Combined effect for initial load and tab changes
-  useEffect(() => {
-    if (isAuthenticated) {
-      if (!initialLoadDone.current) {
-        checkAndRequestPermissions(false); // Check permissions once on initial authenticated load
-        initialLoadDone.current = true;
-      }
-      fetchNotificationCounts();
-      fetchNotifications(1, activeTab, true); // Fetch notifications for the current tab
-    } else {
-      // Clear data if user becomes unauthenticated (e.g., token expiry while screen is open)
-      setNotifications([]);
-      setNotificationCounts({ read: 0, total: 0, unread: 0 });
-      setNotificationPermissionStatus('undetermined');
-      initialLoadDone.current = false; // Reset for next authenticated session
-    }
-  }, [activeTab, isAuthenticated, checkAndRequestPermissions, fetchNotificationCounts, fetchNotifications]);
-
 
   // Effect for FCM setup and message handling
-  useEffect(() => {
-    if (!isAuthenticated || notificationPermissionStatus !== 'granted') {
-        // If permission is not granted, we still want to clear listeners if they were somehow set up before
-        // or if the status changes from granted to something else.
-        // However, new listeners are only set up if status is 'granted'.
-        const noOp = () => {};
-        const unsubscribeForeground = messaging().onMessage(noOp); // Ensure existing listeners are replaced/cleared
-        const unsubscribeOpenedApp = messaging().onNotificationOpenedApp(noOp);
-        // No need to call getInitialNotification here if permission isn't granted
-        const unsubscribeTokenRefresh = messaging().onTokenRefresh(noOp);
-        
-        unsubscribeForeground();
-        unsubscribeOpenedApp();
-        unsubscribeTokenRefresh();
-        return;
-    }
-
-    // Foreground messages
-    const unsubscribeForeground = messaging().onMessage(async remoteMessage => {
-      // Add a check to prevent multiple refreshes if one is already in progress
-      if (isLoading) {
-        console.log('Notifications screen: Refresh already in progress, skipping immediate refresh for new message.');
-        return;
+    useEffect(() => {
+    const unsubscribe = onForegroundMessage(async (remoteMessage) => {
+      // Only refresh if this screen is focused
+      if (!isLoading) {
+        await fetchNotifications(1, activeTab, true);
       }
-      console.log('FCM Message received in foreground on Notifications screen:', remoteMessage);
-      // It's generally good practice to fetch counts first, then the list.
-      await fetchNotificationCounts(); 
-      await fetchNotifications(1, activeTab, true); 
     });
-
-    // Handle notification tap when app is in background
-    const unsubscribeOpenedApp = messaging().onNotificationOpenedApp(remoteMessage => {
-      console.log('[Notifications.tsx] onNotificationOpenedApp: Notification caused app to open from background state:', JSON.stringify(remoteMessage, null, 2));
-      const reservationId = remoteMessage?.data?.reservation_id;
-      if (reservationId) {
-        console.log(`[Notifications.tsx] onNotificationOpenedApp: Found reservation_id: ${reservationId}. Attempting to navigate.`);
-        router.push(`/?reservation_id=${reservationId}`);
-      } else {
-        console.log('[Notifications.tsx] onNotificationOpenedApp: No reservation_id found in notification data.');
-      }
-      // These fetches are for the Notifications.tsx screen itself.
-      // If navigation to index.tsx occurs, these might be interrupted or run for a screen that's about to unmount.
-      console.log('[Notifications.tsx] onNotificationOpenedApp: Fetching notification counts and list for Notifications.tsx screen.');
-      fetchNotificationCounts();
-      fetchNotifications(1, activeTab, true);
-    });
-
-    // Handle notification tap when app is opened from quit state
-    messaging()
-      .getInitialNotification()
-      .then(remoteMessage => {
-        if (remoteMessage) {
-          console.log('[Notifications.tsx] getInitialNotification: Notification caused app to open from quit state:', JSON.stringify(remoteMessage, null, 2));
-          const reservationId = remoteMessage?.data?.reservation_id;
-          if (reservationId) {
-            console.log(`[Notifications.tsx] getInitialNotification: Found reservation_id: ${reservationId}. Attempting to navigate.`);
-            router.push(`/?reservation_id=${reservationId}`);
-          } else {
-            console.log('[Notifications.tsx] getInitialNotification: No reservation_id found in notification data.');
-          }
-          // Similar to above, these fetches are for Notifications.tsx
-          console.log('[Notifications.tsx] getInitialNotification: Fetching notification counts and list for Notifications.tsx screen.');
-          fetchNotificationCounts();
-          fetchNotifications(1, activeTab, true);
-        }
-      });
     
-    const unsubscribeTokenRefresh = messaging().onTokenRefresh(newToken => {
-        if (isAuthenticated) { // Ensure still authenticated
-            registerDeviceForNotifications(); 
-        }
-    });
-
-    return () => {
-      unsubscribeForeground();
-      unsubscribeOpenedApp();
-      unsubscribeTokenRefresh();
-    };
-  }, [isAuthenticated, router, registerDeviceForNotifications, notificationPermissionStatus, activeTab, fetchNotificationCounts, fetchNotifications]);
+    return unsubscribe;
+  }, [onForegroundMessage, activeTab, isLoading]);
   
   useFocusEffect(
     useCallback(() => {
-      if (isAuthenticated) {
+      if (isAuthenticated && restaurantId) {
         checkAndRequestPermissions(false).then(status => {
             // Fetch data regardless of native permission for in-app notifications
             // but ensure counts and list are up-to-date.
@@ -293,15 +152,16 @@ const Notifications = () => {
             fetchNotifications(1, activeTab, true);
         });
       }
-    }, [isAuthenticated, checkAndRequestPermissions, fetchNotificationCounts, fetchNotifications, activeTab])
+    }, [isAuthenticated, restaurantId,checkAndRequestPermissions, fetchNotificationCounts, fetchNotifications, activeTab])
   );
 
   const handleMarkAsRead = useCallback(async (notificationToMark: NotificationType, shouldNavigate = true) => {
     const reservationId = notificationToMark.data?.reservation_id;
-
+    
     // If already read and navigation is intended for a reservation, navigate directly.
     if (notificationToMark.is_read && shouldNavigate && notificationToMark.notification_type === 'RESERVATION' && reservationId) {
-        router.push({ pathname: '/', params: { reservation_id: reservationId } });
+
+        router.push({ pathname: '/(tabs)', params: { reservation_id: reservationId } });
         return;
     }
     // If already read and no navigation is intended, or it's not a reservation type that navigates, do nothing.
@@ -312,24 +172,11 @@ const Notifications = () => {
     // If not read, proceed to mark as read
     try {
       await api.post(`/api/v1/notifications/${notificationToMark.user_notification_id}/mark-read/`);
-
-      // API call successful, now update UI
-      setNotifications(prev => 
-        prev.map(n => 
-          n.user_notification_id === notificationToMark.user_notification_id 
-            ? { ...n, is_read: true, read_at: new Date().toISOString() } 
-            : n
-        )
-      );
-
-      if (activeTab === 'unread') {
-          setNotifications(prev => prev.filter(n => n.user_notification_id !== notificationToMark.user_notification_id));
-      }
       
       await fetchNotificationCounts(); // Refresh counts
-
+      console.log(shouldNavigate && notificationToMark.notification_type === 'RESERVATION' && reservationId)
       if (shouldNavigate && notificationToMark.notification_type === 'RESERVATION' && reservationId) {
-        router.push({ pathname: '/', params: { reservation_id: reservationId } });
+        router.push({ pathname: '/(tabs)', params: { reservation_id: reservationId } });
       }
     } catch (err) {
       console.error('Failed to mark notification as read:', err);
@@ -411,7 +258,7 @@ const Notifications = () => {
   };
 
   const handleRequestPermissionAgain = async () => {
-    const status = await checkAndRequestPermissions(true); // Request again
+    const status = await checkAndRequestPermissions(true) as string; // Request again
     if (status === 'blocked' || (Platform.OS === 'ios' && status === 'denied')) {
         Alert.alert(
             "Permission Blocked",
@@ -430,8 +277,8 @@ const Notifications = () => {
   };
 
   const renderPermissionAlert = () => {
-    if (notificationPermissionStatus === 'denied' || notificationPermissionStatus === 'blocked') {
-      const message = notificationPermissionStatus === 'blocked'
+    if ((notificationPermissionStatus as string) === 'denied' || (notificationPermissionStatus as string) === 'blocked') {
+      const message = (notificationPermissionStatus as string) === 'blocked'
         ? "Notifications are blocked. Enable them in settings for updates."
         : "Enable notifications to receive important updates.";
       return (
@@ -440,7 +287,7 @@ const Notifications = () => {
           <Text style={styles.permissionAlertText}>{message}</Text>
           <TouchableOpacity onPress={handleRequestPermissionAgain} style={styles.permissionAlertButton}>
             <Text style={styles.permissionAlertButtonText}>
-              {notificationPermissionStatus === 'blocked' ? "Open Settings" : "Enable"}
+              {(notificationPermissionStatus as string) === 'blocked' ? "Open Settings" : "Enable"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -506,6 +353,9 @@ const Notifications = () => {
     );
   };
 
+  useEffect(() => {
+    console.log('[Notifications] Notification permission status:', notificationPermissionStatus);
+  },[notificationPermissionStatus])
 
   return (
     <SafeAreaView style={styles.safeArea}>

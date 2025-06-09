@@ -152,7 +152,7 @@ const Notifications = () => {
             fetchNotifications(1, activeTab, true);
         });
       }
-    }, [isAuthenticated, restaurantId,checkAndRequestPermissions, fetchNotificationCounts, fetchNotifications, activeTab])
+    }, [isAuthenticated, restaurantId, checkAndRequestPermissions, fetchNotificationCounts, fetchNotifications, activeTab])
   );
 
   const handleMarkAsRead = useCallback(async (notificationToMark: NotificationType, shouldNavigate = true) => {
@@ -259,7 +259,8 @@ const Notifications = () => {
 
   const handleRequestPermissionAgain = async () => {
     const status = await checkAndRequestPermissions(true) as string; // Request again
-    if (status === 'blocked' || (Platform.OS === 'ios' && status === 'denied')) {
+    console.log(status);
+    if (status === 'blocked' || status === 'denied' || (Platform.OS === 'ios' && status === 'denied')) {
         Alert.alert(
             "Permission Blocked",
             "Notification permissions are blocked. Please enable them in your phone settings.",

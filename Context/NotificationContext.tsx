@@ -48,41 +48,74 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     let currentStatus: PermissionStatus = 'undetermined';
     
     if (Platform.OS === 'ios') {
-      const authStatus = await messaging().hasPermission();
+      let authStatus = await messaging().hasPermission();
       if (authStatus === messaging.AuthorizationStatus.AUTHORIZED || 
           authStatus === messaging.AuthorizationStatus.PROVISIONAL) {
         currentStatus = 'granted';
       } else if (authStatus === messaging.AuthorizationStatus.DENIED) {
         currentStatus = 'denied';
+      } else { // NOT_DETERMINED
+        currentStatus = 'undetermined';
       }
       
-      if ((authStatus === messaging.AuthorizationStatus.NOT_DETERMINED || 
-          (requestIfDenied && authStatus === messaging.AuthorizationStatus.DENIED))) {
-        const requestStatus = await messaging().requestPermission();
-        if (requestStatus === messaging.AuthorizationStatus.AUTHORIZED || 
-            requestStatus === messaging.AuthorizationStatus.PROVISIONAL) {
-          currentStatus = 'granted';
-        } else if (requestStatus === messaging.AuthorizationStatus.DENIED) {
-          currentStatus = 'denied';
+      // Only request if denied or undetermined AND requestIfDenied is true
+      if (requestIfDenied && (currentStatus === 'denied' || currentStatus === 'undetermined')) {
+        try {
+          authStatus = await messaging().requestPermission();
+          if (authStatus === messaging.AuthorizationStatus.AUTHORIZED || 
+              authStatus === messaging.AuthorizationStatus.PROVISIONAL) {
+            currentStatus = 'granted';
+          } else { 
+            currentStatus = 'denied';
+          }
+        } catch (error) {
+          console.error('Error requesting iOS notification permission:', error);
+          currentStatus = 'denied'; // Assume denied on error
         }
       }
     } else if (Platform.OS === 'android') {
-      // Android permissions handling
-      currentStatus = 'granted'; // Android defaults to granted if app is installed
+      // 1. Check initial permission status using Firebase
+      let firebaseAuthStatus = await messaging().hasPermission();
+      if (firebaseAuthStatus === messaging.AuthorizationStatus.AUTHORIZED) {
+        currentStatus = 'granted';
+      } else if (firebaseAuthStatus === messaging.AuthorizationStatus.DENIED) {
+        currentStatus = 'denied';
+      } else { // Covers NOT_DETERMINED or other states
+        currentStatus = 'undetermined'; // Or 'denied' if preferred for non-explicitly granted
+      }
       
-      // For Android 13+ (API level 33+), explicit permission is required
-      if (Platform.Version >= 33 && requestIfDenied) {
-        try {
-          const granted = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
-          );
-          if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-            currentStatus = 'granted';
-          } else {
+      // 2. If not granted and requestIfDenied is true, attempt to request permissions
+      if (requestIfDenied && currentStatus !== 'granted') {
+        if (Platform.Version >= 33) { // Android 13+ (API level 33)
+          try {
+            const permissionRequestResult = await PermissionsAndroid.request(
+              PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+            );
+            if (permissionRequestResult === PermissionsAndroid.RESULTS.GRANTED) {
+              currentStatus = 'granted';
+            } else {
+              currentStatus = 'denied';
+            }
+          } catch (err) {
+            console.warn('Failed to request Android 13+ notification permission:', err);
+            currentStatus = 'denied'; 
+          }
+        } else { // Android < 13
+          try {
+            // For older Android, messaging().requestPermission() doesn't typically show a system
+            // dialog if permissions were manually revoked. It's more for initial setup.
+            // We call it, then re-check with hasPermission().
+            await messaging().requestPermission(); 
+            firebaseAuthStatus = await messaging().hasPermission(); // Re-check the status
+            if (firebaseAuthStatus === messaging.AuthorizationStatus.AUTHORIZED) {
+              currentStatus = 'granted';
+            } else {
+              currentStatus = 'denied';
+            }
+          } catch (err) {
+            console.warn('Failed to request Android < 13 notification permission:', err);
             currentStatus = 'denied';
           }
-        } catch (err) {
-          console.error('Error requesting notification permission:', err);
         }
       }
     }

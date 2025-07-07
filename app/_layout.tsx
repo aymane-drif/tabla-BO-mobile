@@ -7,6 +7,7 @@ import { useColorScheme, View, ActivityIndicator } from 'react-native';
 import { AuthProvider, useAuth } from '@/Context/AuthContext';
 import { useTheme } from '@/Context/ThemeContext';
 import { NotificationProvider } from '@/Context/NotificationContext';
+import { getTrackingPermissionsAsync, requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 export {
   ErrorBoundary,
 } from 'expo-router';
@@ -71,6 +72,22 @@ export default function RootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
   });
+
+    useEffect(() => {
+      const requestTrackingPermission = async () => {
+        // You can optionally check if the permission has already been granted
+        const { granted } = await getTrackingPermissionsAsync();
+        if (granted) {
+          return;
+        }
+        const { status } = await requestTrackingPermissionsAsync();
+        if (status === "granted") {
+          console.log("Yay! I have user permission to track them");
+        }
+      };
+
+      requestTrackingPermission();
+    }, []);
 
   useEffect(() => {
     if (error) throw error;

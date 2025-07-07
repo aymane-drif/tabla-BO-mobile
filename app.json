@@ -16,7 +16,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.tabla.tablabomobile",
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "NSUserTrackingUsageDescription": "We use your device's identifier to help us understand how our app is used and to improve our services. This helps us provide a better, more reliable experience for you."
+      }
     },
     "notification": {
       "icon": "./assets/images/android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png",
@@ -38,7 +41,8 @@
     },
     "plugins": [
       "expo-router",
-      "expo-notifications"
+      "expo-notifications",
+      "expo-tracking-transparency"
     ],
     "experiments": {
       "typedRoutes": true

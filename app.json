@@ -19,7 +19,8 @@
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": ["remote-notification"],
+        "NSUserTrackingUsageDescription": "We use your device's identifier to help us understand how our app is used and to improve our services. This helps us provide a better, more reliable experience for you."
       }
     },
     "notification": {
@@ -51,7 +52,8 @@
             "useFrameworks": "static"
           }
         }
-      ]
+      ],
+      "expo-tracking-transparency"
     ],
     "experiments": {
       "typedRoutes": true

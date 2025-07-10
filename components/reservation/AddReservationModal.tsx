@@ -17,6 +17,7 @@ import {
 import { Feather } from "@expo/vector-icons"
 import { useTheme } from "../../Context/ThemeContext"
 import { format } from "date-fns"
+import { useTranslation } from "react-i18next"
 
 // Import the ReservationProcess component
 import ReservationProcess from "./ReservationProcess"
@@ -71,6 +72,7 @@ interface Occasion {
 
 const AddReservationModal = (props: AddReservationModalProps) => {
   const { colors, isDarkMode } = useTheme()
+  const { t } = useTranslation()
 
   // States
   const [searchKeyword, setSearchKeyword] = useState("")
@@ -79,6 +81,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
   const [count, setCount] = useState(0) // This might be set by fetchClients if API returns total count
   const [selectedOccasion, setSelectedOccasion] = useState<number | null>(null)
   const [occasions, setOccasions] = useState<Occasion[]>([])
+  const [isFormValid, setIsFormValid] = useState(false);
 
   useEffect(() => {
     const fetchOccasions = async () => {
@@ -145,7 +148,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
         // params.append('page_size', '10'); 
 
         const response = await api.get(`/api/v1/bo/customers/?${params.toString()}`);
-        
+
         // Assuming API response structure { results: Client[], count?: number }
         const fetchedClients = response.data.results || [];
         setClients(fetchedClients);
@@ -345,11 +348,59 @@ const AddReservationModal = (props: AddReservationModalProps) => {
     }
   }
 
+  useEffect(() => {
+    const validateExistingClientForm = () => {
+      return (
+        formData.full_name.trim() !== '' &&
+        data.reserveDate !== '' &&
+        data.time !== '' &&
+        data.guests > 0
+      );
+    };
+
+    const validateNewClientForm = () => {
+      const baseValidation =
+        newCustomerData.first_name.trim() !== '' &&
+        newCustomerData.last_name.trim() !== '' &&
+        data.reserveDate !== '' &&
+        data.time !== '' &&
+        data.guests > 0;
+
+      // If creating a user is enabled, also validate email and phone
+      if (createUser) {
+        return baseValidation &&
+          newCustomerData.email.trim() !== '' &&
+          newCustomerData.phone.trim() !== '';
+      }
+
+      return baseValidation;
+    };
+
+    // Set form validity based on which form is being displayed
+    if (newClient) {
+      setIsFormValid(validateNewClientForm());
+    } else if (!findClient) {
+      setIsFormValid(validateExistingClientForm());
+    } else {
+      // In client search view, button should be disabled
+      setIsFormValid(false);
+    }
+  }, [
+    formData,
+    newCustomerData,
+    data.reserveDate,
+    data.time,
+    data.guests,
+    newClient,
+    findClient,
+    createUser
+  ]);
+
   // Replace the renderDateTimeModal function with this new function
   const renderReservationProcess = () => {
     // Only render the component when it's needed
     if (!showReservationProcess) return null;
-    
+
     return (
       <ReservationProcess
         isVisible={showReservationProcess}
@@ -357,10 +408,10 @@ const AddReservationModal = (props: AddReservationModalProps) => {
         initialData={
           data.reserveDate
             ? {
-                reserveDate: data.reserveDate,
-                time: data.time,
-                guests: data.guests,
-              }
+              reserveDate: data.reserveDate,
+              time: data.time,
+              guests: data.guests,
+            }
             : undefined
         }
         onComplete={(selectedData) => {
@@ -381,7 +432,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContainer, { backgroundColor: colors.card }]}>
           <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Select Occasion</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{t("selectOccasion")}</Text>
             <TouchableOpacity onPress={() => setShowOccasionSelectionModal(false)}>
               <Feather name="x" size={24} color={colors.text} />
             </TouchableOpacity>
@@ -409,7 +460,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
                   fontWeight: selectedOccasion === null ? "600" : "normal",
                 }}
               >
-                No Occasion
+                {t("noOccasion")}
               </Text>
               {selectedOccasion === null && <Feather name="check" size={20} color={colors.primary} />}
             </TouchableOpacity>
@@ -443,7 +494,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
               </TouchableOpacity>
             ))}
             {occasions.length === 0 && (
-              <Text style={{ color: colors.subtext, textAlign: 'center', marginTop: 10 }}>No occasions available.</Text>
+              <Text style={{ color: colors.subtext, textAlign: 'center', marginTop: 10 }}>{t("noOccasionsAvailable")}</Text>
             )}
           </ScrollView>
         </View>
@@ -456,14 +507,22 @@ const AddReservationModal = (props: AddReservationModalProps) => {
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>Add Reservation</Text>
+          {newClient && (
+            <TouchableOpacity onPress={() => {
+                setNewClient(false);
+                setFindClient(true);
+            }}>
+              <Feather name="arrow-left" size={24} color={colors.text} />
+            </TouchableOpacity>
+          )}
+          <Text style={[styles.title, { color: colors.text }]}>{t("addReservation")}</Text>
           <TouchableOpacity onPress={props.onClose}>
             <Feather name="x" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
-
-        <TextInput
-          placeholder="Search client"
+          
+        {!newClient && <TextInput
+          placeholder={t("searchClient")}
           value={searchKeyword}
           onChangeText={searchFilter}
           onFocus={() => setFocusedClient(true)}
@@ -475,7 +534,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
               borderColor: colors.border,
             },
           ]}
-        />
+        />}
 
         {!newClient ? (
           <View style={[styles.searchResultsContainer, { backgroundColor: colors.card }]}>
@@ -484,7 +543,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
               onPress={() => setNewClient(true)}
             >
               <Feather name="user-plus" size={20} color="#fff" />
-              <Text style={styles.newClientButtonText}>New Client</Text>
+              <Text style={styles.newClientButtonText}>{t("newClient")}</Text>
             </TouchableOpacity>
 
             <ScrollView style={styles.clientList}>
@@ -510,7 +569,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
                 onPress={() => setNewCustomerData({ ...newCustomerData, title: "mr" })}
               >
                 <Text style={[styles.titleText, { color: newCustomerData.title === "mr" ? "#fff" : colors.text }]}>
-                  Mr
+                  {t('mr')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -518,7 +577,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
                 onPress={() => setNewCustomerData({ ...newCustomerData, title: "mrs" })}
               >
                 <Text style={[styles.titleText, { color: newCustomerData.title === "mrs" ? "#fff" : colors.text }]}>
-                  Mrs
+                  {t('mrs')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -526,13 +585,13 @@ const AddReservationModal = (props: AddReservationModalProps) => {
                 onPress={() => setNewCustomerData({ ...newCustomerData, title: "ms" })}
               >
                 <Text style={[styles.titleText, { color: newCustomerData.title === "ms" ? "#fff" : colors.text }]}>
-                  Ms
+                  {t('ms')}
                 </Text>
               </TouchableOpacity>
             </View>
 
             <TextInput
-              placeholder="First Name"
+              placeholder={t("firstName")}
               onChangeText={(value) => handleNewCustomerChange("first_name", value)}
               style={[
                 styles.input,
@@ -545,7 +604,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
             />
 
             <TextInput
-              placeholder="Last Name"
+              placeholder={t("lastName")}
               onChangeText={(value) => handleNewCustomerChange("last_name", value)}
               style={[
                 styles.input,
@@ -564,13 +623,13 @@ const AddReservationModal = (props: AddReservationModalProps) => {
                 trackColor={{ false: colors.border, true: colors.primary }}
                 thumbColor={createUser ? "#fff" : "#f4f3f4"}
               />
-              <Text style={[styles.checkboxLabel, { color: colors.text }]}>Add as customer</Text>
+              <Text style={[styles.checkboxLabel, { color: colors.text }]}>{t("addAsCustomer")}</Text>
             </View>
 
             {createUser && (
               <>
                 <TextInput
-                  placeholder="Email"
+                  placeholder={t("email")}
                   keyboardType="email-address"
                   onChangeText={(value) => handleNewCustomerChange("email", value)}
                   style={[
@@ -584,7 +643,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
                 />
 
                 <TextInput
-                  placeholder="Phone"
+                  placeholder={t("phone")}
                   keyboardType="phone-pad"
                   onChangeText={(value) => handleNewCustomerChange("phone", value)}
                   style={[
@@ -600,7 +659,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
             )}
 
             <TextInput
-              placeholder="Internal Note"
+              placeholder={t("internalNote")}
               multiline
               numberOfLines={3}
               onChangeText={(value) => handleNewCustomerChange("note", value)}
@@ -621,9 +680,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
               }}
             >
               <Text style={[styles.occasionButtonText, { color: colors.text }]}>
-                {selectedOccasion !== null
-                  ? occasions.find((o) => o.id === selectedOccasion)?.name || "Select Occasion"
-                  : "Select Occasion"}
+                {selectedOccasion ? occasions.find(o => o.id === selectedOccasion)?.name : t("selectOccasion")}
               </Text>
               <Feather name="chevron-down" size={20} color={colors.text} />
             </TouchableOpacity>
@@ -641,7 +698,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
                     color: newCustomerData.source === "BACK_OFFICE" ? "#fff" : colors.text,
                   }}
                 >
-                  Back Office
+                  {t('backOffice')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -656,7 +713,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
                     color: newCustomerData.source === "WALK_IN" ? "#fff" : colors.text,
                   }}
                 >
-                  Walk In
+                  {t('walkIn')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -670,28 +727,31 @@ const AddReservationModal = (props: AddReservationModalProps) => {
               }}
             >
               <View style={styles.dateTimeItem}>
-                <Text style={[styles.dateTimeLabel, { color: colors.subtext }]}>Date</Text>
-                <Text style={[styles.dateTimeValue, { color: colors.text }]}>{data.reserveDate || "Select"}</Text>
+                <Text style={[styles.dateTimeLabel, { color: colors.subtext }]}>{t('date')}</Text>
+                <Text style={[styles.dateTimeValue, { color: colors.text }]}>{data.reserveDate || t('select')}</Text>
               </View>
               <View style={styles.dateTimeItem}>
-                <Text style={[styles.dateTimeLabel, { color: colors.subtext }]}>Time</Text>
-                <Text style={[styles.dateTimeValue, { color: colors.text }]}>{data.time || "Select"}</Text>
+                <Text style={[styles.dateTimeLabel, { color: colors.subtext }]}>{t('time')}</Text>
+                <Text style={[styles.dateTimeValue, { color: colors.text }]}>{data.time || t('select')}</Text>
               </View>
               <View style={styles.dateTimeItem}>
-                <Text style={[styles.dateTimeLabel, { color: colors.subtext }]}>Guests</Text>
+                <Text style={[styles.dateTimeLabel, { color: colors.subtext }]}>{t('guests')}</Text>
                 <Text style={[styles.dateTimeValue, { color: colors.text }]}>{data.guests || "0"}</Text>
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.submitButton, { backgroundColor: colors.primary }]}
+              style={[
+                styles.submitButton,
+                { backgroundColor: isFormValid ? colors.primary : colors.border }
+              ]}
               onPress={handleNewReservationNewCustomer}
-              disabled={isLoading}
+              disabled={isLoading || !isFormValid}
             >
               {isLoading ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={styles.submitButtonText}>Add Reservation</Text>
+                <Text style={styles.submitButtonText}>{t('addReservation')}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -708,7 +768,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
           <TouchableOpacity onPress={() => setFindClient(true)}>
             <Feather name="arrow-left" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.title, { color: colors.text }]}>Add Reservation</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{t('addReservation')}</Text>
           <TouchableOpacity onPress={props.onClose}>
             <Feather name="x" size={24} color={colors.text} />
           </TouchableOpacity>
@@ -716,9 +776,9 @@ const AddReservationModal = (props: AddReservationModalProps) => {
 
         {selectedClient?.tags?.length && (
           <>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Tags</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('tags')}</Text>
             <View style={styles.tagsContainer}>
-              {(selectedClient.tags|| []).map((tag) => (
+              {(selectedClient.tags || []).map((tag) => (
                 <View key={tag.id} style={[styles.tag, { backgroundColor: colors.success + "20" }]}>
                   <Text style={[styles.tagText, { color: colors.success }]}>{tag.name}</Text>
                 </View>
@@ -729,7 +789,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
 
         <View style={styles.formContainer}>
           <TextInput
-            placeholder="Name"
+            placeholder={t('name')}
             value={inputName}
             style={[
               styles.input,
@@ -743,7 +803,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
           />
 
           <TextInput
-            placeholder="Email"
+            placeholder={t('email')}
             value={formData.email}
             onChangeText={(value) => handleFormChange("email", value)}
             style={[
@@ -758,7 +818,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
           />
 
           <TextInput
-            placeholder="Phone"
+            placeholder={t('phone')}
             value={formData.phone}
             onChangeText={(value) => handleFormChange("phone", value)}
             style={[
@@ -781,14 +841,14 @@ const AddReservationModal = (props: AddReservationModalProps) => {
           >
             <Text style={[styles.occasionButtonText, { color: colors.text }]}>
               {selectedOccasion !== null
-                ? occasions.find((o) => o.id === selectedOccasion)?.name || "Select Occasion"
-                : "Select Occasion"}
+                ? occasions.find((o) => o.id === selectedOccasion)?.name || t('selectOccasion')
+                : t('selectOccasion')}
             </Text>
             <Feather name="chevron-down" size={20} color={colors.text} />
           </TouchableOpacity>
 
           <TextInput
-            placeholder="Internal Note"
+            placeholder={t('internalNote')}
             value={formData.comment}
             onChangeText={(value) => handleFormChange("comment", value)}
             multiline
@@ -813,7 +873,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
                   color: formData.source === "BACK_OFFICE" ? "#fff" : colors.text,
                 }}
               >
-                Back Office
+                {t('backOffice')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -825,7 +885,7 @@ const AddReservationModal = (props: AddReservationModalProps) => {
                   color: formData.source === "WALK_IN" ? "#fff" : colors.text,
                 }}
               >
-                Walk In
+                {t('walkIn')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -835,28 +895,31 @@ const AddReservationModal = (props: AddReservationModalProps) => {
             onPress={() => setShowReservationProcess(true)}
           >
             <View style={styles.dateTimeItem}>
-              <Text style={[styles.dateTimeLabel, { color: colors.subtext }]}>Date</Text>
-              <Text style={[styles.dateTimeValue, { color: colors.text }]}>{data.reserveDate || "Select"}</Text>
+              <Text style={[styles.dateTimeLabel, { color: colors.subtext }]}>{t('date')}</Text>
+              <Text style={[styles.dateTimeValue, { color: colors.text }]}>{data.reserveDate || t('select')}</Text>
             </View>
             <View style={styles.dateTimeItem}>
-              <Text style={[styles.dateTimeLabel, { color: colors.subtext }]}>Time</Text>
-              <Text style={[styles.dateTimeValue, { color: colors.text }]}>{data.time || "Select"}</Text>
+              <Text style={[styles.dateTimeLabel, { color: colors.subtext }]}>{t('time')}</Text>
+              <Text style={[styles.dateTimeValue, { color: colors.text }]}>{data.time || t('select')}</Text>
             </View>
             <View style={styles.dateTimeItem}>
-              <Text style={[styles.dateTimeLabel, { color: colors.subtext }]}>Guests</Text>
+              <Text style={[styles.dateTimeLabel, { color: colors.subtext }]}>{t('guests')}</Text>
               <Text style={[styles.dateTimeValue, { color: colors.text }]}>{data.guests || "0"}</Text>
             </View>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.submitButton, { backgroundColor: colors.primary }]}
+            style={[
+              styles.submitButton,
+              { backgroundColor: isFormValid ? colors.primary : colors.border }
+            ]}
             onPress={handleAddReservation}
-            disabled={isLoading}
+            disabled={isLoading || !isFormValid}
           >
             {isLoading ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Text style={styles.submitButtonText}>Add Reservation</Text>
+              <Text style={styles.submitButtonText}>{t('addReservation')}</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -888,7 +951,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "bold",
   },
   input: {

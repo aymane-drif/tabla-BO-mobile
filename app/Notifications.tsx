@@ -8,6 +8,7 @@ import { useAuth } from '../Context/AuthContext'; // Import useAuth
 import { ErrorBoundaryProps, useRouter as useExpoRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons'; // For icons in permission alert
 import { useNotifications } from '@/Context/NotificationContext';
+import { useTranslation } from 'react-i18next';
 
 export type NotificationType = { // Assuming this structure based on dummy data and web app
   user_notification_id: number;
@@ -47,11 +48,12 @@ type ActiveTab = 'unread' | 'read';
 
 
 export function ErrorBoundary(props: ErrorBoundaryProps) {
+  const { t } = useTranslation();
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <Text>Something went wrong with Notifications.</Text>
+      <Text>{t('somethingWentWrongWithNotifications')}</Text>
       <Text>{props.error.message}</Text>
-      <Button onPress={props.retry} title="Try Again" />
+      <Button onPress={props.retry} title={t('tryAgain')} />
     </View>
   );
 }
@@ -76,9 +78,10 @@ const Notifications = () => {
   const { colors } = useTheme();
   const styles = getStyles(colors);
   const router = useExpoRouter();
-  const { isAuthenticated, restaurantId,registerDeviceForNotifications } = useAuth();
+  const { isAuthenticated, restaurantId, registerDeviceForNotifications } = useAuth();
+  const { t } = useTranslation();
 
-    // Replace individual state with context
+  // Replace individual state with context
   const { 
     notificationCounts, 
     permissionStatus: notificationPermissionStatus,
@@ -180,7 +183,7 @@ const Notifications = () => {
       }
     } catch (err) {
       console.error('Failed to mark notification as read:', err);
-      Alert.alert("Error", "Could not mark notification as read. Please try again.");
+      Alert.alert(t("error"), t("markReadError"));
       // Optionally, to ensure data consistency after an error, you might want to refetch
       // or at least refresh counts if the server state might be uncertain.
       await fetchNotificationCounts();
@@ -197,7 +200,7 @@ const Notifications = () => {
       fetchNotifications(1, activeTab, true); 
     } catch (err) {
       console.error('Failed to mark all as read:', err);
-      Alert.alert("Error", "Could not mark all notifications as read.");
+      Alert.alert(t("error"), t("markAllReadError"));
     } finally {
       setIsLoading(false);
     }
@@ -206,12 +209,12 @@ const Notifications = () => {
   const handleClearAll = () => {
     if (notificationCounts.total === 0) return;
     Alert.alert(
-      "Clear All Notifications",
-      "Are you sure you want to clear all notifications? This action cannot be undone.",
+      t("clearAllNotificationsTitle"),
+      t("clearAllNotificationsMessage"),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("cancel"), style: "cancel" },
         { 
-          text: "Clear All", 
+          text: t("clearAll"), 
           style: "destructive", 
           onPress: async () => {
             setIsLoading(true);
@@ -223,7 +226,7 @@ const Notifications = () => {
               fetchNotifications(1, activeTab, true); 
             } catch (err) {
               console.error('Failed to clear all notifications:', err);
-              Alert.alert("Error", "Could not clear all notifications.");
+              Alert.alert(t("error"), t("clearAllError"));
             } finally {
               setIsLoading(false);
             }
@@ -247,10 +250,10 @@ const Notifications = () => {
     if (isPageLoading) {
       return <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 20 }} />;
     }
-    if (hasMore && !isLoading) { // Show Load More button only if not initial loading
+    if (hasMore && !isLoading) {
       return (
         <TouchableOpacity style={styles.loadMoreButton} onPress={handleLoadMore}>
-          <Text style={styles.loadMoreButtonText}>Load More</Text>
+          <Text style={styles.loadMoreButtonText}>{t("loadMore")}</Text>
         </TouchableOpacity>
       );
     }
@@ -258,20 +261,19 @@ const Notifications = () => {
   };
 
   const handleRequestPermissionAgain = async () => {
-    const status = await checkAndRequestPermissions(true) as string; // Request again
+    const status = await checkAndRequestPermissions(true) as string;
     console.log(status);
     if (status === 'blocked' || status === 'denied' || (Platform.OS === 'ios' && status === 'denied')) {
         Alert.alert(
-            "Permission Blocked",
-            "Notification permissions are blocked. Please enable them in your phone settings.",
+            t("permissionBlockedTitle"),
+            t("permissionBlockedMessage"),
             [
-                { text: "Cancel", style: "cancel" },
-                { text: "Open Settings", onPress: () => Linking.openSettings() }
+                { text: t("cancel"), style: "cancel" },
+                { text: t("openSettings"), onPress: () => Linking.openSettings() }
             ]
         );
     } else if (status === 'granted') {
         // Permissions granted, data will be refreshed by focus effect or next tab change.
-        // Optionally, trigger a refresh immediately if desired.
         fetchNotificationCounts();
         fetchNotifications(1, activeTab, true);
     }
@@ -280,15 +282,15 @@ const Notifications = () => {
   const renderPermissionAlert = () => {
     if ((notificationPermissionStatus as string) === 'denied' || (notificationPermissionStatus as string) === 'blocked') {
       const message = (notificationPermissionStatus as string) === 'blocked'
-        ? "Notifications are blocked. Enable them in settings for updates."
-        : "Enable notifications to receive important updates.";
+        ? t("notificationsBlockedMessage")
+        : t("enableNotificationsMessage");
       return (
         <View style={styles.permissionAlertContainer}>
           <Feather name="bell-off" size={20} color={colors.text} />
           <Text style={styles.permissionAlertText}>{message}</Text>
           <TouchableOpacity onPress={handleRequestPermissionAgain} style={styles.permissionAlertButton}>
             <Text style={styles.permissionAlertButtonText}>
-              {(notificationPermissionStatus as string) === 'blocked' ? "Open Settings" : "Enable"}
+              {(notificationPermissionStatus as string) === 'blocked' ? t("openSettings") : t("enable")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -327,7 +329,7 @@ const Notifications = () => {
             <View style={styles.emptyStateContainer}>
                 <Feather name={activeTab === 'unread' ? "mail" : "check-circle"} size={48} color={colors.subtext} />
                 <Text style={[styles.emptyStateText, {marginTop: 10}]}>
-                {activeTab === 'unread' ? 'No unread notifications.' : 'No read notifications.'}
+                {activeTab === 'unread' ? t('noUnreadNotifications') : t('noReadNotifications')}
                 </Text>
             </View>
         );
@@ -368,7 +370,7 @@ const Notifications = () => {
             onPress={() => setActiveTab('unread')}
           >
             <Text style={[styles.tabButtonText, activeTab === 'unread' && styles.activeTabButtonText]}>
-              Unread ({notificationCounts.unread})
+              {t('unread')} ({notificationCounts.unread})
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -376,28 +378,28 @@ const Notifications = () => {
             onPress={() => setActiveTab('read')}
           >
             <Text style={[styles.tabButtonText, activeTab === 'read' && styles.activeTabButtonText]}>
-              Read ({notificationCounts.read})
+              {t('read')} ({notificationCounts.read})
             </Text>
           </TouchableOpacity>
         </View>
 
         {renderContent()}
 
-        {notificationCounts.total > 0 && !error && ( // Hide footer actions if there's a major error screen
+        {notificationCounts.total > 0 && !error && (
           <View style={styles.footerActions}>
             <TouchableOpacity
               onPress={handleMarkAllAsRead}
               disabled={isLoading || notificationCounts.unread === 0}
               style={[styles.footerButton, (isLoading || notificationCounts.unread === 0) && styles.disabledButton]}
             >
-              <Text style={styles.footerButtonText}>Mark all as read ({notificationCounts.unread})</Text>
+              <Text style={styles.footerButtonText}>{t('markAllAsRead')} ({notificationCounts.unread})</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleClearAll}
               disabled={isLoading || notificationCounts.total === 0}
               style={[styles.footerButton, styles.clearButton, (isLoading || notificationCounts.total === 0) && styles.disabledButton]}
             >
-              <Text style={[styles.footerButtonText, styles.clearButtonText]}>Clear all ({notificationCounts.total})</Text>
+              <Text style={[styles.footerButtonText, styles.clearButtonText]}>{t('clearAll')} ({notificationCounts.total})</Text>
             </TouchableOpacity>
           </View>
         )}

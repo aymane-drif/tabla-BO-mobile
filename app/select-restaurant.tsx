@@ -15,6 +15,7 @@ import { useAuth } from '@/Context/AuthContext';
 import { api } from '@/api/axiosInstance';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/Context/ThemeContext'; // Import useTheme
+import { useTranslation } from 'react-i18next';
 
 const RESTAURANT_ID_KEY = 'restaurantId';
 
@@ -58,6 +59,7 @@ const SelectRestaurantScreen = () => {
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme(); // Get colors from theme context
   const styles = createDynamicStyles(colors); // Create styles dynamically
+  const { t } = useTranslation();
 
   const fetchRestaurants = useCallback(async () => {
     setIsLoading(true);
@@ -77,7 +79,7 @@ const SelectRestaurantScreen = () => {
 
     } catch (err: any) {
       console.error('Failed to fetch restaurants:', err);
-      setError('Failed to load restaurants. Please try again.');
+      setError(t('failedToLoadRestaurants'));
     } finally {
       setIsLoading(false);
     }
@@ -89,7 +91,7 @@ const SelectRestaurantScreen = () => {
 
   const handleSelectRestaurant = async (restaurant: RestaurantType) => {
     if (!restaurant || restaurant.id === undefined) {
-      Alert.alert("Error", "Invalid restaurant data.");
+      Alert.alert(t("error"), t("invalidRestaurantData"));
       return;
     }
     const newRestaurantId = restaurant.id.toString();
@@ -101,7 +103,7 @@ const SelectRestaurantScreen = () => {
 
     } catch (e) {
       console.error("Failed to select restaurant:", e);
-      Alert.alert("Error", "Could not save restaurant selection.");
+      Alert.alert(t("error"), t("couldNotSaveRestaurantSelection"));
     }
   };
 
@@ -114,8 +116,8 @@ const SelectRestaurantScreen = () => {
     <View style={styles.screenContainerWithFixedButton}>
       <ScrollView style={styles.screenContainerScrollView} contentContainerStyle={styles.scrollContentContainer}>
         <View style={styles.headerContainer}>
-          <Text style={styles.title}>Choose a Restaurant</Text>
-          <Text style={styles.subtitle}>Select the restaurant you want to manage</Text>
+          <Text style={styles.title}>{t('chooseRestaurant')}</Text>
+          <Text style={styles.subtitle}>{t('selectRestaurantToManage')}</Text>
         </View>
 
         {isLoading ? (
@@ -128,12 +130,12 @@ const SelectRestaurantScreen = () => {
           <View style={styles.centeredContent}>
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity onPress={fetchRestaurants} style={styles.retryButton}>
-              <Text style={styles.retryButtonText}>Retry</Text>
+              <Text style={styles.retryButtonText}>{t('retry')}</Text>
             </TouchableOpacity>
           </View>
         ) : restaurants.length === 0 ? (
           <View style={styles.centeredContent}>
-            <Text style={{ color: colors.text }}>No restaurants found for your account.</Text>
+            <Text style={{ color: colors.text }}>{t('noRestaurantsFound')}</Text>
           </View>
         ) : (
           <View style={styles.listContainer}>
@@ -156,13 +158,13 @@ const SelectRestaurantScreen = () => {
                     <View style={[styles.addressBadge, isActive && styles.addressBadgeActive]}>
                       <MaterialCommunityIcons name="map-marker-outline" size={14} color={isActive ? colors.text : colors.subtext} style={styles.mapPinIcon} />
                       <Text style={[styles.addressText, isActive && styles.addressTextActive]} numberOfLines={1}>
-                        {restaurant.address || 'N/A'}
+                        {restaurant.address || t('notAvailable')}
                       </Text>
                     </View>
                   </View>
                   <View style={styles.cardContent}>
                     <Text style={[styles.cardTitle, isActive && styles.cardTitleActive]} numberOfLines={1}>
-                      {restaurant.name || 'Unnamed Restaurant'}
+                      {restaurant.name || t('unnamedRestaurant')}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -173,7 +175,7 @@ const SelectRestaurantScreen = () => {
       </ScrollView>
       <TouchableOpacity style={styles.changeUserButton} onPress={handleChangeUser}>
         <Feather name="log-out" size={20} color={colors.white} />
-        <Text style={styles.changeUserButtonText}>Change User</Text>
+        <Text style={styles.changeUserButtonText}>{t('changeUser')}</Text>
       </TouchableOpacity>
     </View>
   );

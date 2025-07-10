@@ -3,7 +3,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { useFonts } from 'expo-font';
 import { SplashScreen, Stack, useRouter, usePathname, useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
-import { useColorScheme, View, ActivityIndicator } from 'react-native';
+import { useColorScheme, View, ActivityIndicator, Platform } from 'react-native';
 import { AuthProvider, useAuth } from '@/Context/AuthContext';
 import { useTheme } from '@/Context/ThemeContext';
 import { NotificationProvider } from '@/Context/NotificationContext';
@@ -12,6 +12,10 @@ export {
   ErrorBoundary,
 } from 'expo-router';
 import * as ExpoNotifications from 'expo-notifications'; // Import expo-notifications
+import './../i18n'; // Import the i18n configuration
+import { useTranslation } from 'react-i18next';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import i18n from '../i18n'; // Import the i18n configuration
 
 globalThis.RNFB_SILENCE_MODULAR_DEPRECATION_WARNINGS = true;
 
@@ -37,6 +41,7 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const { colors } = useTheme();
   const router = useRouter();
+  const { t } = useTranslation();
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -48,6 +53,7 @@ function RootLayoutNav() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="Profile" options={{ 
           headerShown: true,
+          title: t('profile'),
           presentation: 'modal',
           headerStyle: {
           backgroundColor: (colors.background),
@@ -57,6 +63,7 @@ function RootLayoutNav() {
         {/* <Stack.Screen name="modal" options={{ presentation: 'modal' }} /> */}
         <Stack.Screen name="Notifications" options={{ 
           headerShown: true,
+          title: t('notifications'),
           headerStyle: {
           backgroundColor: (colors.background),
           },
@@ -73,21 +80,42 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
 
+  useEffect(() => {
+    const requestTrackingPermission = async () => {
+      // You can optionally check if the permission has already been granted
+      const { granted } = await getTrackingPermissionsAsync();
+      if (granted) {
+        return;
+      }
+      const { status } = await requestTrackingPermissionsAsync();
+      if (status === "granted") {
+        console.log("Yay! I have user permission to track them");
+      }
+    };
+    // check if ios then request tracking permission 
+    if(Platform.OS === 'ios'){
+      requestTrackingPermission()
+    }
+  }, []);
+
+    // Add an effect to check and apply saved language
     useEffect(() => {
-      const requestTrackingPermission = async () => {
-        // You can optionally check if the permission has already been granted
-        const { granted } = await getTrackingPermissionsAsync();
-        if (granted) {
-          return;
-        }
-        const { status } = await requestTrackingPermissionsAsync();
-        if (status === "granted") {
-          console.log("Yay! I have user permission to track them");
+      const applyStoredLanguage = async () => {
+        try {
+          const savedLanguage = await AsyncStorage.getItem('app-language');
+          console.log(`Stored language: ${savedLanguage}`);
+          if (savedLanguage) {
+            i18n.changeLanguage(savedLanguage);
+            console.log(`Applied stored language: ${savedLanguage}`);
+          }
+        } catch (error) {
+          console.error("Failed to load language preference:", error);
         }
       };
-
-      requestTrackingPermission();
+      
+      applyStoredLanguage();
     }, []);
+
 
   useEffect(() => {
     if (error) throw error;

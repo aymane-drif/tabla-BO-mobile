@@ -1,15 +1,17 @@
 "use client"
 
 import { StatusBar } from "expo-status-bar"
-import { Platform, StyleSheet, TouchableOpacity, Modal, TextInput, Alert } from "react-native"
+import { Platform, StyleSheet, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator } from "react-native"
 import { useState } from "react"
 import { useRouter } from "expo-router"
 import { Feather } from "@expo/vector-icons"
 import { api } from "../api/axiosInstance"
+import { useTranslation } from "react-i18next"
 
 import { Text, View } from "@/components/Themed"
 import { useAuth } from "@/Context/AuthContext"
 import { useTheme } from "@/Context/ThemeContext"
+import LanguageSelector from "@/components/LanguageSelector"
 
 // Change Password Component
 function ChangePasswordModal({
@@ -21,6 +23,7 @@ function ChangePasswordModal({
   onClose: () => void
   colors: any
 }) {
+  const { t } = useTranslation()
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -33,17 +36,17 @@ function ChangePasswordModal({
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
-      Alert.alert("Error", "Please fill in all fields")
+      Alert.alert(t("error"), t("pleaseFillAllFields"))
       return
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert("Error", "New passwords do not match")
+      Alert.alert(t("error"), t("newPasswordsDoNotMatch"))
       return
     }
 
     if (newPassword.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters long")
+      Alert.alert(t("error"), t("passwordTooShort"))
       return
     }
 
@@ -73,14 +76,14 @@ function ChangePasswordModal({
           errorData.new_password1?.[0] ||
           errorData.new_password2?.[0] ||
           errorData.non_field_errors?.[0] ||
-          "Failed to change password"
-        Alert.alert("Error", errorMessage)
+          t("failedToChangePassword")
+        Alert.alert(t("error"), errorMessage)
       } else if (error.request) {
         // Network error
-        Alert.alert("Error", "Network error. Please check your connection and try again.")
+        Alert.alert(t("error"), t("networkError"))
       } else {
         // Other error
-        Alert.alert("Error", "An unexpected error occurred. Please try again.")
+        Alert.alert(t("error"), t("unexpectedError"))
       }
     } finally {
       setLoading(false)
@@ -101,7 +104,7 @@ function ChangePasswordModal({
     <Modal visible={visible} animationType="slide" transparent>
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-          <Text style={[styles.modalTitle, { color: colors.text }]}>Change Password</Text>
+          <Text style={[styles.modalTitle, { color: colors.text }]}>{t("changePassword")}</Text>
 
           {/* Current Password Input */}
           <View style={styles.inputContainer}>
@@ -111,7 +114,7 @@ function ChangePasswordModal({
                 styles.inputWithIcon,
                 { backgroundColor: colors.background, color: colors.text, borderColor: colors.border },
               ]}
-              placeholder="Current Password"
+              placeholder={t("currentPassword")}
               placeholderTextColor={colors.subtext}
               secureTextEntry={!showCurrentPassword}
               value={currentPassword}
@@ -131,7 +134,7 @@ function ChangePasswordModal({
                 styles.inputWithIcon,
                 { backgroundColor: colors.background, color: colors.text, borderColor: colors.border },
               ]}
-              placeholder="New Password"
+              placeholder={t("newPassword")}
               placeholderTextColor={colors.subtext}
               secureTextEntry={!showNewPassword}
               value={newPassword}
@@ -151,7 +154,7 @@ function ChangePasswordModal({
                 styles.inputWithIcon,
                 { backgroundColor: colors.background, color: colors.text, borderColor: colors.border },
               ]}
-              placeholder="Confirm New Password"
+              placeholder={t("confirmNewPassword")}
               placeholderTextColor={colors.subtext}
               secureTextEntry={!showConfirmPassword}
               value={confirmPassword}
@@ -173,7 +176,7 @@ function ChangePasswordModal({
               onPress={resetModal}
               disabled={loading}
             >
-              <Text style={[styles.modalButtonText, { color: colors.text }]}>Cancel</Text>
+              <Text style={[styles.modalButtonText, { color: colors.text }]}>{t("cancel")}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -187,10 +190,10 @@ function ChangePasswordModal({
             >
               {loading ? (
                 <View style={styles.loadingContainer}>
-                  <Text style={[styles.modalButtonText, { color: colors.white }]}>Changing...</Text>
+                  <Text style={[styles.modalButtonText, { color: colors.white }]}>{t("changing")}</Text>
                 </View>
               ) : (
-                <Text style={[styles.modalButtonText, { color: colors.white }]}>Change Password</Text>
+                <Text style={[styles.modalButtonText, { color: colors.white }]}>{t("changePassword")}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -201,8 +204,9 @@ function ChangePasswordModal({
 }
 
 export default function ModalScreen() {
-  const { logout } = useAuth()
+  const { logout, isLoading } = useAuth()
   const { colors } = useTheme()
+  const { t } = useTranslation()
   const router = useRouter()
   const [showPasswordModal, setShowPasswordModal] = useState(false)
 
@@ -217,33 +221,51 @@ export default function ModalScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Text style={[styles.title, { color: colors.text }]}>Profile</Text>
-      <View style={[styles.separator, { backgroundColor: colors.border }]} />
-
-      {/* Profile Actions */}
-      <View style={styles.actionsContainer}>
+      {/* Profile Actions List */}
+      <View style={[styles.actionsListContainer, { backgroundColor: colors.card }]}>
         <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: colors.primary }]}
+          style={[styles.actionListItem, { borderBottomColor: colors.border }]}
           onPress={() => setShowPasswordModal(true)}
         >
-          <Feather name="lock" size={20} color={colors.white} />
-          <Text style={[styles.actionButtonText, { color: colors.white }]}>Change Password</Text>
+          <View style={[styles.actionIconContainer, { backgroundColor: colors.primary + '20' }]}>
+            <Feather name="lock" size={20} color={colors.primary} />
+          </View>
+          <Text style={[styles.actionListItemText, { color: colors.text }]}>{t("changePassword")}</Text>
+          <Feather name="chevron-right" size={20} color={colors.subtext} />
         </TouchableOpacity>
-
+        
         <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: colors.primary }]}
+          style={styles.actionListItem}
           onPress={handleChangeRestaurant}
         >
-          <Feather name="home" size={20} color={colors.white} />
-          <Text style={[styles.actionButtonText, { color: colors.white }]}>Change Restaurant</Text>
+          <View style={[styles.actionIconContainer, { backgroundColor: colors.primary + '20' }]}>
+            <Feather name="home" size={20} color={colors.primary} />
+          </View>
+          <Text style={[styles.actionListItemText, { color: colors.text }]}>{t("changeRestaurant")}</Text>
+          <Feather name="chevron-right" size={20} color={colors.subtext} />
         </TouchableOpacity>
       </View>
 
-      {/* Logout Button */}
-      <TouchableOpacity style={[styles.logoutButton, { backgroundColor: colors.danger }]} onPress={handleLogout}>
-        <Feather name="log-out" size={20} color={colors.white} />
-        <Text style={[styles.logoutButtonText, { color: colors.white }]}>Logout</Text>
-      </TouchableOpacity>
+      {/* Language Selection */}
+      <View style={[styles.actionsListContainer, { backgroundColor: colors.card, marginTop: 20 }]}>
+        <LanguageSelector/>
+      </View>
+
+      {/* Logout Button - Fixed at bottom */}
+      <View style={styles.footerContainer}>
+        <TouchableOpacity 
+          style={[styles.logoutButton, { backgroundColor: colors.danger + '15' }]} 
+          onPress={handleLogout}
+        >
+          {
+            isLoading? <ActivityIndicator color={colors.danger} /> :
+            <>
+            <Feather name="log-out" size={20} color={colors.danger} />
+            <Text style={[styles.logoutButtonText, { color: colors.danger }]}>{t("logout")}</Text>
+            </>
+          }
+        </TouchableOpacity>
+      </View>
 
       {/* Change Password Modal */}
       <ChangePasswordModal visible={showPasswordModal} onClose={() => setShowPasswordModal(false)} colors={colors} />
@@ -256,9 +278,14 @@ export default function ModalScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
+    padding: 0,
+  },
+  header: {
+    width: '100%',
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 24,
@@ -270,59 +297,51 @@ const styles = StyleSheet.create({
     height: 1,
     width: "80%",
   },
-  actionsContainer: {
-    backgroundColor: "transparent",
-    flexDirection: "row",
-    width: "100%",
-    marginBottom: 40,
-    gap: 12,
-    paddingHorizontal: 10,
+  actionsListContainer: {
+    borderRadius: 10,
+    overflow: 'hidden',
+    marginHorizontal: 20,
+    width: 'auto',
   },
-  actionButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+  actionListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    gap: 8,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    paddingHorizontal: 20,
   },
-  actionButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    textAlign: "center",
-    flexShrink: 1,
+  actionIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 15,
+  },
+  actionListItemText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  footerContainer: {
+    position: 'absolute',
+    bottom: 40,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
   },
   logoutButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 40,
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
-    marginTop: 20,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    paddingHorizontal: 30,
+    paddingVertical: 15,
+    borderRadius: 10,
+    gap: 10,
+    width: '80%',
   },
   logoutButtonText: {
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: "600",
   },
   // Modal Styles for Change Password
   modalOverlay: {

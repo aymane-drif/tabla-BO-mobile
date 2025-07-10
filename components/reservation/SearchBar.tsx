@@ -5,6 +5,7 @@ import { useState } from "react"
 import { View, TextInput, StyleSheet, TouchableOpacity } from "react-native"
 import { Feather } from "@expo/vector-icons"
 import { useTheme } from "../../Context/ThemeContext"
+import { useTranslation } from "react-i18next"
 
 interface SearchBarProps {
   onSearch: (text: string) => void
@@ -14,6 +15,7 @@ interface SearchBarProps {
 const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isDarkMode }) => {
   const [searchText, setSearchText] = useState("")
   const { colors } = useTheme()
+  const { t } = useTranslation()
 
   const handleClear = () => {
     setSearchText("")
@@ -38,7 +40,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isDarkMode }) => {
       <Feather name="search" size={20} color={colors.text} style={styles.icon} />
       <TextInput
         style={[styles.input, { color: colors.text }]}
-        placeholder="Search reservations..."
+        placeholder={t("searchReservations")}
         placeholderTextColor={colors.text + "80"}
         value={searchText}
         onChangeText={handleChangeText}

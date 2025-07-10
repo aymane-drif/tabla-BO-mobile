@@ -5,6 +5,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from "react-native"
 import { Feather } from "@expo/vector-icons"
 import { useTheme } from "../../Context/ThemeContext"
 import type { Reservation } from "../../app/(tabs)"
+import { useTranslation } from "react-i18next"
 
 interface ReservationCardProps {
   reservation: Reservation
@@ -23,7 +24,8 @@ const ReservationCard: React.FC<ReservationCardProps> = ({
   onReview,
   isDarkMode,
 }) => {
-  const { colors } = useTheme()
+  const { colors } = useTheme();
+  const { t } = useTranslation();
 
   // Get status style
   const getStatusStyle = (status: string) => {
@@ -44,24 +46,24 @@ const ReservationCard: React.FC<ReservationCardProps> = ({
   }
 
   // Get status label
-  const getStatusLabel = (status: string): string => {
-    switch (status) {
-      case "APPROVED":
-        return "Confirmed"
-      case "PENDING":
-        return "Pending"
-      case "SEATED":
-        return "Seated"
-      case "FULFILLED":
-        return "Fulfilled"
-      case "NO_SHOW":
-        return "No Show"
-      case "CANCELED":
-        return "Cancelled"
-      default:
-        return status
-    }
+const getStatusLabel = (status: string, t: (key: string) => string): string => {
+  switch (status) {
+    case "APPROVED":
+      return t("confirmed")
+    case "PENDING":
+      return t("pending")
+    case "SEATED":
+      return t("seated")
+    case "FULFILLED":
+      return t("fulfilled")
+    case "NO_SHOW":
+      return t("noShow")
+    case "CANCELED":
+      return t("cancelled")
+    default:
+      return status
   }
+}
 
   const statusStyle = getStatusStyle(reservation.status)
 
@@ -85,7 +87,7 @@ const ReservationCard: React.FC<ReservationCardProps> = ({
           style={[styles.statusBadge, { backgroundColor: statusStyle.backgroundColor }]}
           onPress={() => onStatusChange(reservation.id)}
         >
-          <Text style={[styles.statusText, { color: statusStyle.color }]}>{getStatusLabel(reservation.status)}</Text>
+          <Text style={[styles.statusText, { color: statusStyle.color }]}>{getStatusLabel(reservation.status, t)}</Text>
         </TouchableOpacity>
       </View>
 
@@ -133,7 +135,7 @@ const ReservationCard: React.FC<ReservationCardProps> = ({
         {/* Tables */}
         {reservation.tables && reservation.tables.length > 0 && (
           <View style={styles.tablesContainer}>
-            <Text style={[styles.tablesLabel, { color: colors.text + "80" }]}>Tables:</Text>
+            <Text style={[styles.tablesLabel, { color: colors.text + "80" }]}>{t('tables')}:</Text>
             <Text style={[styles.tablesText, { color: colors.text, flexWrap: "wrap"}]}>
               {reservation.tables.map((table) => table.name).join(", ")}
             </Text>

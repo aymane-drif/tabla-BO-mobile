@@ -33,6 +33,7 @@ import { ErrorBoundaryProps } from "expo-router"
 import { useSelectedDate } from '@/Context/SelectedDateContext';
 import messaging from '@react-native-firebase/messaging'; // Import messaging
 import { useNotifications } from '@/Context/NotificationContext';
+import { useTranslation } from 'react-i18next';
 
 // Types and Interfaces
 export interface ReceivedTables {
@@ -150,31 +151,32 @@ const statusStyle = (status: string) => {
 }
 
 // Get status label
-const getStatusLabel = (status: string): string => {
+const getStatusLabel = (status: string, t: (key: string) => string): string => {
   switch (status) {
     case "APPROVED":
-      return "Confirmed"
+      return t("confirmed")
     case "PENDING":
-      return "Pending"
+      return t("pending")
     case "SEATED":
-      return "Seated"
+      return t("seated")
     case "FULFILLED":
-      return "Fulfilled"
+      return t("fulfilled")
     case "NO_SHOW":
-      return "No Show"
+      return t("noShow")
     case "CANCELED":
-      return "Cancelled"
+      return t("cancelled")
     default:
       return status
   }
 }
 
 export function ErrorBoundary(props: ErrorBoundaryProps) {
+  const { t } = useTranslation();
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <Text>Something went wrong with Notifications.</Text>
+      <Text>{t('somethingWentWrongWithNotifications')}</Text>
       <Text>{props.error.message}</Text>
-      <Button onPress={props.retry} title="Try Again" />
+      <Button onPress={props.retry} title={t('tryAgain')} />
     </View>
   );
 }
@@ -264,6 +266,7 @@ const ReservationsScreen = () => {
   const params = useLocalSearchParams<{ reservation_id?: string }>();
   const { selectedDate: contextSelectedDate } = useSelectedDate();
   const styles = getStyles(colors); // Ensure styles are generated with current colors
+  const { t } = useTranslation();
 
 
   // Column configuration
@@ -489,13 +492,13 @@ const ReservationsScreen = () => {
               setShowModal(true);
             } else {
               // console.warn(`[ReservationsScreen] Reservation with ID ${id} not found by API.`);
-              Alert.alert("Not Found", `Reservation with ID ${id} not found.`);
+              Alert.alert(t("notFound"), t("reservationNotFound", { id }));
               setIsLoadingReservationForModal(false);
               setReservationIdBeingProcessed(null); 
             }
           } catch (error) {
             // console.error(`[ReservationsScreen] Error fetching reservation ${id}:`, error);
-            Alert.alert("Error", `Could not load reservation ${id}. Please try again.`);
+            Alert.alert(t("error"), t("couldNotLoadReservation", { id }));
             setIsLoadingReservationForModal(false);
             setReservationIdBeingProcessed(null);
           }
@@ -610,11 +613,11 @@ const ReservationsScreen = () => {
 
     } catch (error) {
       console.error("Error creating reservation:", error);
-      let errorMessage = "Failed to create reservation. Please try again.";
+      let errorMessage = t("failedToCreateReservation");
       if (axios.isAxiosError(error) && error.response && error.response.data) {
-        errorMessage = `Failed to create reservation: ${JSON.stringify(error.response.data)}`;
+        errorMessage = `${t("failedToCreateReservation")}: ${JSON.stringify(error.response.data)}`;
       }
-      Alert.alert("Error", errorMessage);
+      Alert.alert(t("error"), errorMessage);
     }
   };
 
@@ -655,7 +658,7 @@ const ReservationsScreen = () => {
 
   const upDateHandler = async (updatedReservation: Reservation) => {
     if (!editingClient) {
-      Alert.alert("Error", "No reservation selected for update.");
+      Alert.alert(t("error"), t("noReservationSelectedForUpdate"));
       return;
     }
     // Consider a specific loader for this operation if desired, e.g. setIsLoadingData(true)
@@ -696,13 +699,13 @@ const ReservationsScreen = () => {
       fetchReservations(1, false); // Refetch page 1 without main loader
     } catch (error) {
       console.error("Error updating reservation:", error);
-      let errorMessage = "Failed to update reservation.";
+      let errorMessage = t("failedToUpdateReservation");
       if (axios.isAxiosError(error) && error.response && error.response.data) {
         const errorData = error.response.data;
         const messages = Object.entries(errorData).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`);
         errorMessage += `\n${messages.join('\n')}`;
       }
-      Alert.alert("Error", errorMessage);
+      Alert.alert(t("error"), errorMessage);
     } 
     // finally { setIsLoadingData(false); } // Only if a specific loader was set here
   }
@@ -743,7 +746,7 @@ const ReservationsScreen = () => {
 
   const sendReview = (id: string): void => {
     // In a real app, this would be an API call.
-    Alert.alert("Review Link Sent", `A review link has been sent to the customer with reservation #${id}`)
+    Alert.alert(t("reviewLinkSentTitle"), t("reviewLinkSentMessage", { id }))
     setToBeReviewedRes(id)
   }
 
@@ -755,20 +758,20 @@ const ReservationsScreen = () => {
       fetchReservations(1, true); 
     } catch (error) {
       console.error(`Error deleting reservation ${id}:`, error);
-      let errorMessage = "Failed to delete reservation. Please try again.";
+      let errorMessage = t("failedToDeleteReservation");
       if (axios.isAxiosError(error) && error.response && error.response.data) {
         const errorData = error.response.data;
         if (typeof errorData === 'string') {
-          errorMessage = `Failed to delete reservation: ${errorData}`;
+          errorMessage = t("failedToDeleteReservationWithError", { error: errorData });
         } else if (errorData.detail) {
-          errorMessage = `Failed to delete reservation: ${errorData.detail}`;
+          errorMessage = t("failedToDeleteReservationWithError", { error: errorData.detail });
         } else {
-          errorMessage = `Failed to delete reservation: ${JSON.stringify(errorData)}`;
+          errorMessage = t("failedToDeleteReservationWithError", { error: JSON.stringify(errorData) });
         }
       } else if (error instanceof Error) {
-        errorMessage = `Failed to delete reservation: ${error.message}`;
+        errorMessage = t("failedToDeleteReservationWithError", { error: error.message });
       }
-      Alert.alert("Error", errorMessage);
+      Alert.alert(t("error"), errorMessage);
       setShowDeleteConfirm(false);
     }
   };
@@ -815,7 +818,7 @@ const ReservationsScreen = () => {
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={colors.primary} />
         <Text style={[styles.loadingText, { color: colors.text, marginTop: 10 }]}>
-          Loading reservation details...
+          {t('loadingReservationDetails')}
         </Text>
       </SafeAreaView>
     );
@@ -865,7 +868,7 @@ const ReservationsScreen = () => {
         </TouchableOpacity>
       </View>
       <Text style={[styles.filterSectionTitle, { color: colors.text }]}>
-        Status
+        {t('status')}
       </Text>
       <ScrollView 
         horizontal
@@ -894,7 +897,7 @@ const ReservationsScreen = () => {
                   focusedFilter === "" && !selectingDay && !filterDate ? colors.text : colors.text,
               }}
             >
-              All
+              {t('all')}
             </Text>
             {focusedFilter === "" && !selectingDay && !filterDate && count > 0 && !isLoadingData && !isRefreshing && (
               <View style={(focusedFilter === "" && !selectingDay && !filterDate) ? styles.badgeContainerActive : styles.badgeContainerInactive}>
@@ -922,7 +925,7 @@ const ReservationsScreen = () => {
                 color: focusedFilter === "FULFILLED" ? colors.text : colors.text,
               }}
             >
-              Fulfilled
+              {t('fulfilled')}
             </Text>
             {focusedFilter === "FULFILLED" && count > 0 && !isLoadingData && !isRefreshing && (
               <View style={focusedFilter === "FULFILLED" ? styles.badgeContainerActive : styles.badgeContainerInactive}>
@@ -950,7 +953,7 @@ const ReservationsScreen = () => {
                 color: focusedFilter === "SEATED" ? colors.text : colors.text,
               }}
             >
-              Seated
+              {t('seated')}
             </Text>
             {focusedFilter === "SEATED" && count > 0 && !isLoadingData && !isRefreshing && (
               <View style={focusedFilter === "SEATED" ? styles.badgeContainerActive : styles.badgeContainerInactive}>
@@ -978,7 +981,7 @@ const ReservationsScreen = () => {
                 color: focusedFilter === "APPROVED" ? colors.text : colors.text,
               }}
             >
-              Confirmed
+              {t('confirmed')}
             </Text>
             {focusedFilter === "APPROVED" && count > 0 && !isLoadingData && !isRefreshing && (
               <View style={focusedFilter === "APPROVED" ? styles.badgeContainerActive : styles.badgeContainerInactive}>
@@ -1006,7 +1009,7 @@ const ReservationsScreen = () => {
                 color: focusedFilter === "CANCELED" ? colors.text : colors.text,
               }}
             >
-              Cancelled
+              {t('cancelled')}
             </Text>
             {focusedFilter === "CANCELED" && count > 0 && !isLoadingData && !isRefreshing && (
               <View style={focusedFilter === "CANCELED" ? styles.badgeContainerActive : styles.badgeContainerInactive}>
@@ -1034,7 +1037,7 @@ const ReservationsScreen = () => {
                 color: focusedFilter === "PENDING" ? colors.text : colors.text,
               }}
             >
-              Pending
+              {t('pending')}
             </Text>
             {focusedFilter === "PENDING" && count > 0 && !isLoadingData && !isRefreshing && (
               <View style={focusedFilter === "PENDING" ? styles.badgeContainerActive : styles.badgeContainerInactive}>
@@ -1062,7 +1065,7 @@ const ReservationsScreen = () => {
                 color: focusedFilter === "NO_SHOW" ? colors.text : colors.text,
               }}
             >
-              No Show
+              {t('noShow')}
             </Text>
             {focusedFilter === "NO_SHOW" && count > 0 && !isLoadingData && !isRefreshing && (
               <View style={focusedFilter === "NO_SHOW" ? styles.badgeContainerActive : styles.badgeContainerInactive}>
@@ -1078,7 +1081,7 @@ const ReservationsScreen = () => {
       {focusedFilter || selectingDay ? (
         <View style={styles.activeFiltersContainer}>
           <Text style={[styles.activeFiltersTitle, { color: colors.text }]}>
-            Active Filters:
+            {t('activeFilters')}:
           </Text>
           <ScrollView
             horizontal
@@ -1090,7 +1093,7 @@ const ReservationsScreen = () => {
                 style={[styles.filterChip, { backgroundColor: colors.card }]}
               >
                 <Text style={{ color: colors.text }}>
-                  {getStatusLabel(focusedFilter)}
+                  {getStatusLabel(focusedFilter, t)}
                 </Text>
                 <TouchableOpacity onPress={() => filterByStatus("")}>
                   <Feather name="x" size={16} color={colors.text} />
@@ -1131,7 +1134,7 @@ const ReservationsScreen = () => {
           !isLoadingData && !isRefreshing ? ( // Show empty only if not actively loading initial or refreshing
             <View style={styles.emptyContainer}>
               <Text style={[styles.emptyText, { color: colors.text }]}>
-                No reservations found.
+                {t('noReservationsFound')}
               </Text>
             </View>
           ) : null
@@ -1173,11 +1176,12 @@ const ReservationsScreen = () => {
       >
         <View style={styles.modalOverlay}>
           <View
-            style={[styles.modalContainer, { backgroundColor: colors.card }]}
+            style={[styles.modalContainer, { backgroundColor: colors.card }]
+          }
           >
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>
-                Filter Reservations
+                {t('filterReservations')}
               </Text>
               <TouchableOpacity onPress={() => setShowFilterModal(false)}>
                 <Feather name="x" size={24} color={colors.text} />
@@ -1186,7 +1190,7 @@ const ReservationsScreen = () => {
 
             <ScrollView style={styles.modalContent}>
               <Text style={[styles.filterSectionTitle, { color: colors.text }]}>
-                Date
+                {t('date')}
               </Text>
               <TouchableOpacity
                 style={[
@@ -1201,9 +1205,10 @@ const ReservationsScreen = () => {
               >
                 <Feather name="calendar" size={20} color={colors.text} />
                 <Text
-                  style={[styles.datePickerButtonText, { color: colors.text }]}
+                  style={[styles.datePickerButtonText, { color: colors.text }]
+                }
                 >
-                  {selectingDay || "Select Date Range"}
+                  {selectingDay || t("selectDateRange")}
                 </Text>
               </TouchableOpacity>
             </ScrollView>
@@ -1215,7 +1220,7 @@ const ReservationsScreen = () => {
                 setShowFilterModal(false);
               }}
             >
-              <Text style={{ color: colors.text }}>Reset All Filters</Text>
+              <Text style={{ color: colors.text }}>{t('resetAllFilters')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1237,8 +1242,7 @@ const ReservationsScreen = () => {
           >
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>
-
-                Select Date Range
+                {t('selectDateRange')}
               </Text>
               <TouchableOpacity onPress={() => setFocusedDate(false)}>
                 <Feather name="x" size={24} color={colors.text} />
@@ -1288,12 +1292,10 @@ const ReservationsScreen = () => {
       {/* Status Confirmation Modal */}
       <ActionConfirmation
         isVisible={showStatusConfirm}
-        title="Change Reservation Status"
-        message={`Are you sure you want to change the status to ${getStatusLabel(
-          pendingStatus
-        )}?`}
-        confirmText="Confirm"
-        cancelText="Cancel"
+        title={t("changeReservationStatusTitle")}
+        message={t("changeReservationStatusMessage", { status: getStatusLabel(pendingStatus, t) })}
+        confirmText={t("confirm")}
+        cancelText={t("cancel")}
         onConfirm={confirmStatusUpdate}
         onCancel={() => setShowStatusConfirm(false)}
         isDarkMode={isDarkMode}
@@ -1301,10 +1303,10 @@ const ReservationsScreen = () => {
       {/* Delete Confirmation Modal */}
       <ActionConfirmation
         isVisible={showDeleteConfirm}
-        title="Delete Reservation"
-        message="Are you sure you want to delete this reservation? This action cannot be undone."
-        confirmText="Delete"
-        cancelText="Cancel"
+        title={t("deleteReservationTitle")}
+        message={t("deleteReservationMessage")}
+        confirmText={t("delete")}
+        cancelText={t("cancel")}
         onConfirm={() => handleDeleteReservation(reservationToDelete)}
         onCancel={() => setShowDeleteConfirm(false)}
         isDangerous={true}

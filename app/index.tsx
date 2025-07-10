@@ -9,7 +9,6 @@ export default function SplashScreen() {
   const { isLoading, isAuthenticated, user } = useAuth();
   const router = useRouter();
   const { colors } = useTheme();
-
 useEffect(() => {
   const foregroundSubscription = ExpoNotifications.addNotificationResponseReceivedListener(response => {
     const notificationData = response.notification.request.content.data;

@@ -21,6 +21,7 @@ import { Occasion } from "../../types/Reservation"
 
 // Import the ReservationProcess component
 import ReservationProcess from "./ReservationProcess"
+import { useTranslation } from "react-i18next"
 
 // Types and Interfaces
 export interface ReceivedTables {
@@ -95,6 +96,7 @@ const EditReservationModal = ({
   isDarkMode,
 }: EditReservationModalProps) => {
   const { colors } = useTheme()
+  const { t } = useTranslation()
 
   // States
   const [selectedClient, setSelectedClient] = useState<Reservation | null>(null)
@@ -111,6 +113,7 @@ const EditReservationModal = ({
   const [occasions, setOccasions] = useState<Occasion[]>([])
   const [loadingTables, setLoadingTables] = useState(false)
   const [loadingOccasions, setLoadingOccasions] = useState(false)
+  const [isFormValid, setIsFormValid] = useState(false)
 
   // Replace the showDateTimePicker state with showReservationProcess
   const [showReservationProcess, setShowReservationProcess] = useState<boolean>(false)
@@ -225,17 +228,17 @@ const EditReservationModal = ({
   const getStatusLabel = (status: string): string => {
     switch (status) {
       case "APPROVED":
-        return "Confirmed"
+        return t("confirmed")
       case "PENDING":
-        return "Pending"
+        return t("pending")
       case "SEATED":
-        return "Seated"
+        return t("seated")
       case "FULFILLED":
-        return "Fulfilled"
+        return t("fulfilled")
       case "NO_SHOW":
-        return "No Show"
+        return t("noShow")
       case "CANCELED":
-        return "Cancelled"
+        return t("cancelled")
       default:
         return status
     }
@@ -267,6 +270,24 @@ const EditReservationModal = ({
     setShowReservationProcess(true)
   }
 
+  useEffect(() => {
+    const validateForm = () => {
+      // Return false if client is null
+      if (!selectedClient) return false;
+
+      // Check required fields
+      return (
+        selectedClient.full_name.trim() !== '' &&
+        reservationProgressData.reserveDate !== '' &&
+        reservationProgressData.time !== '' &&
+        reservationProgressData.guests > 0 &&
+        selectedClient.status !== ''
+      );
+    };
+
+    setIsFormValid(validateForm());
+  }, [selectedClient, reservationProgressData]);
+
   // Render read-only view
   const renderReadOnlyView = () => (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -278,9 +299,9 @@ const EditReservationModal = ({
       </View>
 
       {/* Tags */}
-      {selectedClient?.tags?.length && 
+      {selectedClient?.tags?.length &&
         <>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Tags</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('tags')}</Text>
           <View style={styles.tagsContainer}>
             {selectedClient?.tags?.map((tag, index) => (
               <View key={index} style={[styles.tag, { backgroundColor: colors.success + "20" }]}>
@@ -292,24 +313,24 @@ const EditReservationModal = ({
       }
 
       {/* Client preferences */}
-      <Text style={[styles.cardTitle, { color: colors.text }]}>{selectedClient?.full_name}'s preferences</Text>
+      <Text style={[styles.cardTitle, { color: colors.text }]}>{selectedClient?.full_name}</Text>
       <View style={[styles.preferencesCard, { backgroundColor: colors.card }]}>
 
         <View style={styles.preferenceItem}>
-          <Text style={[styles.preferenceLabel, { color: colors.subtext }]}>Allergies</Text>
-          <Text style={[styles.preferenceValue, { color: colors.text }]}>{selectedClient?.allergies || "None"}</Text>
+          <Text style={[styles.preferenceLabel, { color: colors.subtext }]}>{t('allergies')}</Text>
+          <Text style={[styles.preferenceValue, { color: colors.text }]}>{selectedClient?.allergies || t('none')}</Text>
         </View>
 
         <View style={styles.preferenceItem}>
-          <Text style={[styles.preferenceLabel, { color: colors.subtext }]}>Occasion</Text>
+          <Text style={[styles.preferenceLabel, { color: colors.subtext }]}>{t('occasion')}</Text>
           <Text style={[styles.preferenceValue, { color: colors.text }]}>
-            {typeof selectedClient?.occasion === "object" ? selectedClient?.occasion?.name : "None"}
+            {typeof selectedClient?.occasion === "object" ? selectedClient?.occasion?.name : t('none')}
           </Text>
         </View>
 
         <View style={styles.preferenceItem}>
           <Text style={[styles.preferenceLabel, { color: colors.subtext }]}>Comment</Text>
-          <Text style={[styles.preferenceValue, { color: colors.text }]}>{selectedClient?.commenter || "None"}</Text>
+          <Text style={[styles.preferenceValue, { color: colors.text }]}>{selectedClient?.commenter || t('none')}</Text>
         </View>
       </View>
 
@@ -318,7 +339,7 @@ const EditReservationModal = ({
         <View style={[styles.cancellationCard, { backgroundColor: colors.danger + "10" }]}>
           <View style={styles.cancellationHeader}>
             <Feather name="x-circle" size={18} color={colors.danger} style={styles.cancellationIcon} />
-            <Text style={[styles.cancellationTitle, { color: colors.danger }]}>Cancelled</Text>
+            <Text style={[styles.cancellationTitle, { color: colors.danger }]}>{t('cancelled')}</Text>
           </View>
 
           {selectedClient?.cancellation_note && (
@@ -338,31 +359,31 @@ const EditReservationModal = ({
       {/* Reservation details */}
       <View style={styles.detailsContainer}>
         <View style={styles.detailItem}>
-          <Text style={[styles.detailLabel, { color: colors.text }]}>Made By</Text>
+          <Text style={[styles.detailLabel, { color: colors.text }]}>{t('madeBy')}</Text>
           <View style={[styles.detailValue, { backgroundColor: colors.card }]}>
-            <Text style={{ color: colors.text }}>{selectedClient?.source || "N/A"}</Text>
+            <Text style={{ color: colors.text }}>{selectedClient?.source || t('none')}</Text>
           </View>
         </View>
 
         <View style={styles.detailItem}>
-          <Text style={[styles.detailLabel, { color: colors.text }]}>Internal Note</Text>
+          <Text style={[styles.detailLabel, { color: colors.text }]}>{t('internalNote')}</Text>
           <View style={[styles.detailValue, { backgroundColor: colors.card }]}>
-            <Text style={{ color: colors.text }}>{selectedClient?.internal_note || "No internal notes"}</Text>
+            <Text style={{ color: colors.text }}>{selectedClient?.internal_note || t('none')}</Text>
           </View>
         </View>
 
         <View style={styles.detailItem}>
-          <Text style={[styles.detailLabel, { color: colors.text }]}>Status</Text>
+          <Text style={[styles.detailLabel, { color: colors.text }]}>{t('status')}</Text>
           <View style={[styles.detailValue, { backgroundColor: colors.card }]}>
             <Text style={{ color: colors.text }}>{getStatusLabel(selectedClient?.status || "")}</Text>
           </View>
         </View>
 
         <View style={styles.detailItem}>
-          <Text style={[styles.detailLabel, { color: colors.text }]}>Occasion</Text>
+          <Text style={[styles.detailLabel, { color: colors.text }]}>{t('occasion')}</Text>
           <View style={[styles.detailValue, { backgroundColor: colors.card }]}>
             <Text style={{ color: colors.text }}>
-              {typeof selectedClient?.occasion === "object" ? selectedClient?.occasion?.name : "No occasion"}
+              {typeof selectedClient?.occasion === "object" ? selectedClient?.occasion?.name : t('noOccasion')}
             </Text>
           </View>
         </View>
@@ -382,26 +403,26 @@ const EditReservationModal = ({
         <View style={styles.dateTimeItem}>
           <Feather name="calendar" size={16} color={colors.text} style={styles.dateTimeIcon} />
           <Text style={[styles.dateTimeText, { color: colors.text }]}>
-            {reservationProgressData.reserveDate || "No date"}
+            {reservationProgressData.reserveDate || t('noDate')}
           </Text>
         </View>
 
         <View style={styles.dateTimeItem}>
           <Feather name="clock" size={16} color={colors.text} style={styles.dateTimeIcon} />
-          <Text style={[styles.dateTimeText, { color: colors.text }]}>{reservationProgressData.time || "No time"}</Text>
+          <Text style={[styles.dateTimeText, { color: colors.text }]}>{reservationProgressData.time || t('noTime')}</Text>
         </View>
 
         <View style={styles.dateTimeItem}>
           <Feather name="users" size={16} color={colors.text} style={styles.dateTimeIcon} />
           <Text style={[styles.dateTimeText, { color: colors.text }]}>
-            {reservationProgressData.guests || 0} guests
+            {reservationProgressData.guests || 0} {t('guests')}
           </Text>
         </View>
       </View>
 
       {/* Close button */}
       <TouchableOpacity style={[styles.closeButton, { backgroundColor: colors.primary }]} onPress={onClose}>
-        <Text style={styles.closeButtonText}>Close</Text>
+        <Text style={styles.closeButtonText}>{t('close')}</Text>
       </TouchableOpacity>
     </ScrollView>
   )
@@ -415,30 +436,30 @@ const EditReservationModal = ({
     >
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>Edit Reservation</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{t('editReservation')}</Text>
           <TouchableOpacity onPress={onClose}>
             <Feather name="x" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
 
         <Text style={[styles.reservationId, { color: colors.subtext }]}>
-          Reservation ID: {selectedClient?.seq_id || selectedClient?.id}
+          {t('reservationId')}: {selectedClient?.seq_id || selectedClient?.id}
         </Text>
 
         {/* Tags */}
-        {selectedClient?.tags?.length && <> 
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Tags</Text>
-        <View style={styles.tagsContainer}>
-          {selectedClient?.tags?.map((tag, index) => (
-            <View key={index} style={[styles.tag, { backgroundColor: colors.success + "20" }]}>
-              <Text style={[styles.tagText, { color: colors.success }]}>{tag}</Text>
-            </View>
-          ))}
-        </View>
+        {selectedClient?.tags?.length && <>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('tags')}</Text>
+          <View style={styles.tagsContainer}>
+            {selectedClient?.tags?.map((tag, index) => (
+              <View key={index} style={[styles.tag, { backgroundColor: colors.success + "20" }]}>
+                <Text style={[styles.tagText, { color: colors.success }]}>{tag}</Text>
+              </View>
+            ))}
+          </View>
         </>
         }
 
-        <Text style={[styles.cardTitle, { color: colors.text }]}>{selectedClient?.full_name}'s preferences</Text>
+        <Text style={[styles.cardTitle, { color: colors.text }]}>{selectedClient?.full_name}</Text>
         {/* Client preferences */}
         <View style={[styles.preferencesCard, { backgroundColor: colors.card }]}>
 
@@ -447,7 +468,7 @@ const EditReservationModal = ({
             <View style={[styles.cancellationCard, { backgroundColor: colors.danger + "10" }]}>
               <View style={styles.cancellationHeader}>
                 <Feather name="x-circle" size={18} color={colors.danger} style={styles.cancellationIcon} />
-                <Text style={[styles.cancellationTitle, { color: colors.danger }]}>Cancelled</Text>
+                <Text style={[styles.cancellationTitle, { color: colors.danger }]}>{t('cancelled')}</Text>
               </View>
 
               {selectedClient?.cancellation_note && (
@@ -465,20 +486,20 @@ const EditReservationModal = ({
           )}
 
           <View style={styles.preferenceItem}>
-            <Text style={[styles.preferenceLabel, { color: colors.subtext }]}>Allergies</Text>
-            <Text style={[styles.preferenceValue, { color: colors.text }]}>{selectedClient?.allergies || "None"}</Text>
+            <Text style={[styles.preferenceLabel, { color: colors.subtext }]}>{t('allergies')}</Text>
+            <Text style={[styles.preferenceValue, { color: colors.text }]}>{selectedClient?.allergies || t('none')}</Text>
           </View>
 
           <View style={styles.preferenceItem}>
-            <Text style={[styles.preferenceLabel, { color: colors.subtext }]}>Occasion</Text>
+            <Text style={[styles.preferenceLabel, { color: colors.subtext }]}>{t('occasion')}</Text>
             <Text style={[styles.preferenceValue, { color: colors.text }]}>
-              {typeof selectedClient?.occasion === "object" ? selectedClient?.occasion?.name : "None"}
+              {typeof selectedClient?.occasion === "object" ? selectedClient?.occasion?.name : t('none')}
             </Text>
           </View>
 
           <View style={styles.preferenceItem}>
-            <Text style={[styles.preferenceLabel, { color: colors.subtext }]}>Comment</Text>
-            <Text style={[styles.preferenceValue, { color: colors.text }]}>{selectedClient?.commenter || "None"}</Text>
+            <Text style={[styles.preferenceLabel, { color: colors.subtext }]}>{t('comment')}</Text>
+            <Text style={[styles.preferenceValue, { color: colors.text }]}>{selectedClient?.commenter || t('none')}</Text>
           </View>
         </View>
 
@@ -486,19 +507,19 @@ const EditReservationModal = ({
         <View style={styles.formContainer}>
           {/* Source selection */}
           <View style={styles.formItem}>
-            <Text style={[styles.formLabel, { color: colors.text }]}>Made By</Text>
+            <Text style={[styles.formLabel, { color: colors.text }]}>{t('source')}</Text>
             <TouchableOpacity
               style={[styles.selectButton, { backgroundColor: colors.card, borderColor: colors.border }]}
               onPress={() => setShowSourceSelection(true)}
             >
-              <Text style={{ color: colors.text }}>{selectedClient?.source || "Select source"}</Text>
+              <Text style={{ color: colors.text }}>{selectedClient?.source || t('selectSource')}</Text>
               <Feather name="chevron-down" size={20} color={colors.text} />
             </TouchableOpacity>
           </View>
 
           {/* Internal note */}
           <View style={styles.formItem}>
-            <Text style={[styles.formLabel, { color: colors.text }]}>Internal Note</Text>
+            <Text style={[styles.formLabel, { color: colors.text }]}>{t('internalNote')}</Text>
             <TextInput
               value={selectedClient?.internal_note || ""}
               onChangeText={(text) => selectedClient && setSelectedClient({ ...selectedClient, internal_note: text })}
@@ -512,14 +533,14 @@ const EditReservationModal = ({
               ]}
               multiline
               numberOfLines={3}
-              placeholder="Add internal notes here"
+              placeholder={t('addInternalNotes')}
               placeholderTextColor={colors.subtext}
             />
           </View>
 
           {/* Status selection */}
           <View style={styles.formItem}>
-            <Text style={[styles.formLabel, { color: colors.text }]}>Status</Text>
+            <Text style={[styles.formLabel, { color: colors.text }]}>{t('status')}</Text>
             <TouchableOpacity
               style={[styles.selectButton, { backgroundColor: colors.card, borderColor: colors.border }]}
               onPress={() => setShowStatusSelection(true)}
@@ -536,7 +557,7 @@ const EditReservationModal = ({
 
           {/* Occasion selection */}
           <View style={styles.formItem}>
-            <Text style={[styles.formLabel, { color: colors.text }]}>Occasion</Text>
+            <Text style={[styles.formLabel, { color: colors.text }]}>{t('occasion')}</Text>
             <TouchableOpacity
               style={[styles.selectButton, { backgroundColor: colors.card, borderColor: colors.border }]}
               onPress={() => setShowOccasionSelection(true)}
@@ -544,7 +565,7 @@ const EditReservationModal = ({
               <Text style={{ color: colors.text }}>
                 {typeof selectedClient?.occasion === "object" && selectedClient?.occasion
                   ? selectedClient.occasion.name
-                  : "Select occasion"}
+                  : t('selectOccasion')}
               </Text>
               <Feather name="chevron-down" size={20} color={colors.text} />
             </TouchableOpacity>
@@ -553,7 +574,7 @@ const EditReservationModal = ({
           {/* Table selection - only for APPROVED or SEATED status */}
           {(selectedClient?.status === "APPROVED" || selectedClient?.status === "SEATED") && (
             <View style={styles.formItem}>
-              <Text style={[styles.formLabel, { color: colors.text }]}>Tables</Text>
+              <Text style={[styles.formLabel, { color: colors.text }]}>{t('tables')}</Text>
               <TouchableOpacity
                 style={[styles.selectButton, { backgroundColor: colors.card, borderColor: colors.border }]}
                 onPress={() => setShowTableSelection(true)}
@@ -561,7 +582,7 @@ const EditReservationModal = ({
                 <Text style={{ color: colors.text }}>
                   {selectedClient?.tables && selectedClient.tables.length > 0
                     ? selectedClient.tables.map((t) => t.name).join(", ")
-                    : "Select tables"}
+                    : t('selectTables')}
                 </Text>
                 <Feather name="chevron-down" size={20} color={colors.text} />
               </TouchableOpacity>
@@ -591,7 +612,7 @@ const EditReservationModal = ({
             <View style={styles.dateTimeItem}>
               <Feather name="users" size={16} color={colors.text} style={styles.dateTimeIcon} />
               <Text style={[styles.dateTimeText, { color: colors.text }]}>
-                {reservationProgressData.guests || 0} guests
+                {reservationProgressData.guests || 0} {t('guests')}
               </Text>
             </View>
           </TouchableOpacity>
@@ -603,11 +624,22 @@ const EditReservationModal = ({
             style={[styles.cancelButton, { backgroundColor: colors.background, borderColor: colors.border }]}
             onPress={onClose}
           >
-            <Text style={{ color: colors.text }}>Cancel</Text>
+            <Text style={{ color: colors.text }}>{t('cancel')}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.saveButton, { backgroundColor: colors.primary }]} onPress={handleSave}>
-            <Text style={styles.saveButtonText}>Save</Text>
+          <TouchableOpacity
+            style={[
+              styles.saveButton,
+              { backgroundColor: isFormValid ? colors.primary : colors.border }
+            ]}
+            onPress={handleSave}
+            disabled={!isFormValid || isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.saveButtonText}>{t('save')}</Text>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -620,7 +652,7 @@ const EditReservationModal = ({
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContainer, { backgroundColor: colors.card }]}>
           <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Select Source</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{t('selectSource')}</Text>
             <TouchableOpacity onPress={() => setShowSourceSelection(false)}>
               <Feather name="x" size={24} color={colors.text} />
             </TouchableOpacity>
@@ -667,7 +699,7 @@ const EditReservationModal = ({
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContainer, { backgroundColor: colors.card }]}>
           <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Select Status</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{t('selectStatus')}</Text>
             <TouchableOpacity onPress={() => setShowStatusSelection(false)}>
               <Feather name="x" size={24} color={colors.text} />
             </TouchableOpacity>
@@ -717,7 +749,7 @@ const EditReservationModal = ({
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContainer, { backgroundColor: colors.card }]}>
           <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Select Occasion</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{t('selectOccasion')}</Text>
             <TouchableOpacity onPress={() => setShowOccasionSelection(false)}>
               <Feather name="x" size={24} color={colors.text} />
             </TouchableOpacity>
@@ -746,7 +778,7 @@ const EditReservationModal = ({
                   fontWeight: selectedOccasion === null ? "600" : "normal",
                 }}
               >
-                No Occasion
+                {t('noOccasion')}
               </Text>
               {selectedOccasion === null && <Feather name="check" size={20} color={colors.primary} />}
             </TouchableOpacity>
@@ -792,7 +824,7 @@ const EditReservationModal = ({
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContainer, { backgroundColor: colors.card }]}>
           <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Select Tables</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{t('selectTables')}</Text>
             <TouchableOpacity onPress={() => setShowTableSelection(false)}>
               <Feather name="x" size={24} color={colors.text} />
             </TouchableOpacity>
@@ -847,7 +879,7 @@ const EditReservationModal = ({
             style={[styles.confirmButton, { backgroundColor: colors.primary }]}
             onPress={() => setShowTableSelection(false)}
           >
-            <Text style={styles.confirmButtonText}>Confirm Selection</Text>
+            <Text style={styles.confirmButtonText}>{t('confirmSelection')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -885,9 +917,9 @@ const EditReservationModal = ({
     <Modal visible={showConfirmPopup} transparent animationType="fade">
       <View style={styles.modalOverlay}>
         <View style={[styles.confirmationContainer, { backgroundColor: colors.card }]}>
-          <Text style={[styles.confirmationTitle, { color: colors.text }]}>Confirm Update</Text>
+          <Text style={[styles.confirmationTitle, { color: colors.text }]}>{t('confirmUpdate')}</Text>
           <Text style={[styles.confirmationMessage, { color: colors.subtext }]}>
-            Are you sure you want to update this reservation?
+            {t('updateReservationConfirmation')}
           </Text>
 
           {/* Reservation summary card */}
@@ -926,7 +958,7 @@ const EditReservationModal = ({
             {/* Tables */}
             {selectedClient?.tables && selectedClient.tables.length > 0 && (
               <View style={styles.summaryTables}>
-                <Text style={[styles.summaryTablesLabel, { color: colors.subtext }]}>Tables: </Text>
+                <Text style={[styles.summaryTablesLabel, { color: colors.subtext }]}>{t('tablesLabel')}: </Text>
                 <Text style={[styles.summaryTablesValue, { color: colors.text }]}>
                   {selectedClient.tables.map((t) => t.name).join(", ")}
                 </Text>
@@ -935,7 +967,7 @@ const EditReservationModal = ({
 
             {/* Status */}
             <View style={styles.summaryStatus}>
-              <Text style={[styles.summaryStatusLabel, { color: colors.subtext }]}>Status: </Text>
+              <Text style={[styles.summaryStatusLabel, { color: colors.subtext }]}>{t('status')}: </Text>
               <Text style={[styles.summaryStatusValue, { color: getStatusColor(selectedClient?.status || "") }]}>
                 {getStatusLabel(selectedClient?.status || "")}
               </Text>
@@ -947,7 +979,7 @@ const EditReservationModal = ({
               style={[styles.cancelConfirmButton, { backgroundColor: colors.background }]}
               onPress={() => setShowConfirmPopup(false)}
             >
-              <Text style={{ color: colors.text }}>Cancel</Text>
+              <Text style={{ color: colors.text }}>{t('cancel')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -958,7 +990,7 @@ const EditReservationModal = ({
               {isLoading ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={styles.confirmConfirmButtonText}>Confirm</Text>
+                <Text style={styles.confirmConfirmButtonText}>{t('confirm')}</Text>
               )}
             </TouchableOpacity>
           </View>

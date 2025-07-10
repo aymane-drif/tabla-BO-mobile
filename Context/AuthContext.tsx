@@ -119,13 +119,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const fcmToken = await messaging().getToken(); // Get current token to unregister
       if (fcmToken) {
         // Call your backend to remove/invalidate this token for the user
-        await api.delete('/api/v1/device-tokens/', { data: { token: fcmToken } }); // Example endpoint
+        await api.post('/api/v1/device-tokens/delete-by-token/', { token: fcmToken }); // Example endpoint
         // console.log('FCM token unregistered from server.');
         // You might also delete the token locally if Firebase allows, but usually server-side invalidation is key.
         // await messaging().deleteToken(); // This deletes the token, new one will be generated next time.
       }
-    } catch (error) {
-      console.error("Error unregistering device token:", error);
+    } catch (error: Error | any) {
+      console.error("Error unregistering device token:", error?.message || error);
     }
   };
 
@@ -185,8 +185,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // logout user function 
+  const logoutUser = async () => {
+    try{
+      await api.post("/api/v1/auth/logout/");
+    }catch (error) {
+      console.error("Logout failed:", error);
+    }
+  }
+
   const logout = async () => {
-    // await unregisterDeviceToken(); // Unregister FCM token on logout
+    setAuthState(prev => ({ ...prev, isLoading: true })); // Set loading state during logout
+    await logoutUser(); // Call the logout endpoint to invalidate session on server
+    await unregisterDeviceToken(); // Unregister FCM token on logout
 
     await AsyncStorage.removeItem(AUTH_ACCESS_TOKEN_KEY);
     await AsyncStorage.removeItem(AUTH_REFRESH_TOKEN_KEY);

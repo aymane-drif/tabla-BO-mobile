@@ -20,6 +20,8 @@ import { useAuth } from '@/Context/AuthContext';
 import { useRouter, Stack } from 'expo-router';
 import { DarkTheme, DefaultTheme } from '@react-navigation/native'; // For theme colors
 import { useTheme } from '@/Context/ThemeContext';
+import LanguageSelector from '@/components/LanguageSelector';
+import { useTranslation } from 'react-i18next';
 
 const LoginScreen = () => {
   const [email, setEmail] = useState('');
@@ -30,6 +32,7 @@ const LoginScreen = () => {
   const colorScheme = useColorScheme();
   
   const {colors} = useTheme();
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -43,13 +46,13 @@ const LoginScreen = () => {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please enter both email and password.');
+      Alert.alert(t('error'), t('enterEmailAndPassword'));
       return;
     }
     try {
       await login({ email, password });
     } catch (error: any) {
-      Alert.alert('Login Failed', 'An unexpected error occurred. Please try again.');
+      Alert.alert(t('loginFailed'), t('unexpectedError'));
     }
   };
 
@@ -62,7 +65,7 @@ const LoginScreen = () => {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={[styles.loadingText, { color: colors.text }]}>Logging in...</Text>
+        <Text style={[styles.loadingText, { color: colors.text }]}>{t('loggingIn')}</Text>
       </View>
     );
   }
@@ -82,8 +85,8 @@ const LoginScreen = () => {
           <Stack.Screen options={{ headerShown: false }} />
           <Image source={require('../assets/images/android/res/mipmap-xxxhdpi/ic_launcher_foreground.png')} style={styles.logo} resizeMode="cover" />
           
-          <Text style={[styles.title, { color: colors.text }]}>Welcome Back!</Text>
-          <Text style={[styles.subtitle, { color: colors.text }]}>Sign in to continue</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{t('welcomeBack')}</Text>
+          <Text style={[styles.subtitle, { color: colors.text }]}>{t('signInToContinue')}</Text>
           
           <TextInput
             style={[
@@ -94,7 +97,7 @@ const LoginScreen = () => {
                 borderColor: colors.border 
               }
             ]}
-            placeholder="Email"
+            placeholder={t('email')}
             placeholderTextColor={colors.textMuted}            
             value={email}
             onChangeText={setEmail}
@@ -113,7 +116,7 @@ const LoginScreen = () => {
                 styles.passwordTextInput,
                 { color: colors.text }
               ]}
-              placeholder="Password"
+              placeholder={t('password')}
               placeholderTextColor={colors.textMuted}
               value={password}
               onChangeText={setPassword}
@@ -121,7 +124,7 @@ const LoginScreen = () => {
             />
             <TouchableOpacity onPress={toggleShowPassword} style={styles.toggleButton}>
               <Text style={[styles.toggleButtonText, { color: colors.primary }]}>
-                {showPassword ? 'Hide' : 'Show'}
+                {showPassword ? t('hide') : t('show')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -131,7 +134,7 @@ const LoginScreen = () => {
             disabled={isLoading}
           >
             <Text style={[styles.buttonText, { color: colorScheme === 'dark' ? '#FFFFFF' : '#FFFFFF'}]}>
-              {isLoading ? "Logging in..." : "Login"}
+              {isLoading ? t('loggingIn') : t('login')}
             </Text>
           </TouchableOpacity>
 
@@ -143,12 +146,15 @@ const LoginScreen = () => {
           </TouchableOpacity> */}
 
             <View style={styles.footerLinksContainer}>
+              <LanguageSelector/>
+            </View>
+            <View style={styles.footerLinksContainer}>
             <TouchableOpacity onPress={() => Linking.openURL('https://restaurant.tabla.ma/mentions-legales/')}>
-              <Text style={[styles.footerLinkText, { color: colors.textMuted }]}>Terms of Service</Text>
+              <Text style={[styles.footerLinkText, { color: colors.textMuted }]}>{t('termsOfService')}</Text>
             </TouchableOpacity>
             <Text style={[styles.footerLinkSeparator, { color: colors.textMuted }]}> | </Text>
             <TouchableOpacity onPress={() => Linking.openURL('https://restaurant.tabla.ma/privacy-policy/')}>
-              <Text style={[styles.footerLinkText, { color: colors.textMuted }]}>Privacy Policy</Text>
+              <Text style={[styles.footerLinkText, { color: colors.textMuted }]}>{t('privacyPolicy')}</Text>
             </TouchableOpacity>
             </View>
         </View>

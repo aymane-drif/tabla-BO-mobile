@@ -20,6 +20,7 @@ import { format, parseISO, addMonths, subMonths, startOfMonth, isValid, getMonth
 
 import { useTheme } from "../../Context/ThemeContext"
 import { api } from "../../api/axiosInstance" // Assuming api is your configured axios instance
+import { useTranslation } from "react-i18next"
 
 const { width, height } = Dimensions.get("window")
 
@@ -76,7 +77,8 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
   minGuests = 1,
   initialData,
 }) => {
-  const { colors, isDarkMode } = useTheme()
+  const { colors, isDarkMode } = useTheme();
+  const { t } = useTranslation();
 
   const [activeTab, setActiveTab] = useState<"date" | "guest" | "time" | "confirm">("date")
   
@@ -199,7 +201,7 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
       setMarkedDates(newMarkedDates)
     } catch (error) {
       console.log("Failed to fetch available dates:", error)
-      Alert.alert("Error", "Could not load available dates.");
+      Alert.alert("Error", t("couldNotLoadDates"));
       setMarkedDates({}) // Clear marked dates on error
     } finally {
       setLoadingDates(false)
@@ -211,37 +213,6 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
       fetchAvailableDates(currentCalendarMonth)
     }
   }, [currentCalendarMonth, fetchAvailableDates, isVisible])
-  
-  // // Update markedDates when selectedDate changes
-  // useEffect(() => {
-  //   setMarkedDates(prevMarkedDates => {
-  //     const newMarkedDates = { ...prevMarkedDates };
-  //     // Reset previous selection
-  //     console.log("Updating markedDates for selectedDate:", selectedDate);
-  //     (Object.keys(newMarkedDates) || [])?.forEach(date => {
-  //       if (newMarkedDates[date].selected) {
-  //         // Keep other properties like 'disabled', but remove 'selected' styling
-  //         newMarkedDates[date] = { ...newMarkedDates[date], selected: false, selectedColor: undefined, marked: prevMarkedDates[date]?.disabled ? false : true };
-  //       }
-  //     });
-  //     if (selectedDate && newMarkedDates[selectedDate]) {
-  //       newMarkedDates[selectedDate] = {
-  //         ...newMarkedDates[selectedDate],
-  //         selected: true,
-  //         selectedColor: colors.primary,
-  //         marked: true, // Ensure selected date has a dot or is marked
-  //       };
-  //     } else if (selectedDate) { // If selectedDate is not in current markedDates (e.g. different month loaded)
-  //        newMarkedDates[selectedDate] = {
-  //           selected: true,
-  //           selectedColor: colors.primary,
-  //           marked: true,
-  //           disabled: false, // Assume it's selectable if chosen
-  //        };
-  //     }
-  //     return newMarkedDates;
-  //   });
-  // }, [selectedDate, colors.primary]);
 
 
   const fetchAvailableTimes = useCallback(async () => {
@@ -264,7 +235,7 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
       setAvailableTimes(response.data || {})
     } catch (error) {
       console.log("Failed to fetch available times:", error)
-      Alert.alert("Error", "Could not load available times.");
+      Alert.alert("Error", t("couldNotLoadTimes"));
       setAvailableTimes({})
     } finally {
       setLoadingTimes(false)
@@ -315,7 +286,7 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
     if (!isNaN(numGuests) && numGuests >= minGuests) {
       handleGuestSelection(numGuests);
     } else {
-      Alert.alert("Invalid Input", `Please enter a number between ${minGuests} and ${maxGuests}.`);
+      Alert.alert("Invalid Input", t("invalidGuestCount", { minGuests, maxGuests }));
     }
   };
 
@@ -332,7 +303,7 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
         guests: selectedGuests,
       })
     } else {
-      Alert.alert("Incomplete Information", "Please select date, guests, and time.");
+      Alert.alert("Incomplete Information", t("completeAllSteps"));
     }
   }
 
@@ -427,23 +398,21 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
             </TouchableOpacity>
           ))}
         </View>
-        <Text style={[styles.orText, { color: colors.subtext }]}>Or enter manually</Text>
+        <Text style={[styles.orText, { color: colors.subtext }]}>{t("orEnterManually")}</Text>
         <View style={styles.manualGuestContainer}>
           <TextInput
-            style={[styles.guestInput, { color: colors.text, borderColor: colors.border, backgroundColor: isDarkMode ? colors.background : '#fff' }]
-          }
+            style={[styles.guestInput, { color: colors.text, borderColor: colors.border, backgroundColor: isDarkMode ? colors.background : '#fff' }]}
             keyboardType="number-pad"
             value={manualGuestInput}
             onChangeText={setManualGuestInput}
-            placeholder={`Number of guests`}
+            placeholder={t('numberOfGuests')}
             placeholderTextColor={colors.subtext}
           />
           <TouchableOpacity
-            style={[styles.confirmGuestButton, { backgroundColor: colors.primary }]
-          }
+            style={[styles.confirmGuestButton, { backgroundColor: colors.primary }]}
             onPress={handleManualGuestConfirm}
           >
-            <Text style={[styles.confirmGuestButtonText, {color: isDarkMode ? colors.text : "#FFF"}]}>Set</Text>
+            <Text style={[styles.confirmGuestButtonText, {color: isDarkMode ? colors.text : "#FFF"}]}>{t("set")}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -457,7 +426,7 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
         <View style={styles.emptyStateContainer}>
           <Feather name="clock" size={48} color={colors.subtext} />
           <Text style={[styles.emptyStateText, { color: colors.subtext }]}>
-            No time slots available for the selected date and guest count. Please try different options.
+            {t('noTimeSlots')}
           </Text>
         </View>
       )}
@@ -497,31 +466,31 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
   const renderConfirmTab = () => (
     <View style={styles.tabContent}>
       <Text style={[styles.confirmTitle, { color: colors.text }]}>
-        Confirm Reservation
+        {t('confirmReservation')}
       </Text>
       {selectedDate && selectedGuests && selectedTime ? (
         <>
           <Text style={[styles.confirmDetail, { color: colors.subtext }]}>
-            Date: <Text style={{ fontWeight: "bold", color: colors.text }}>{format(parseISO(selectedDate), "EEEE, MMMM dd, yyyy")}</Text>
+            {t('date')}: <Text style={{ fontWeight: "bold", color: colors.text }}>{format(parseISO(selectedDate), "EEEE, MMMM dd, yyyy")}</Text>
           </Text>
           <Text style={[styles.confirmDetail, { color: colors.subtext }]}>
-            Guests: <Text style={{ fontWeight: "bold", color: colors.text }}>{selectedGuests}</Text>
+            {t('guests')}: <Text style={{ fontWeight: "bold", color: colors.text }}>{selectedGuests}</Text>
           </Text>
           <Text style={[styles.confirmDetail, { color: colors.subtext }]}>
-            Time: <Text style={{ fontWeight: "bold", color: colors.text }}>{selectedTime}</Text>
+            {t('time')}: <Text style={{ fontWeight: "bold", color: colors.text }}>{selectedTime}</Text>
           </Text>
           <View style={styles.confirmButtonContainer}>
             <TouchableOpacity
               style={[styles.confirmButton, { backgroundColor: colors.primary }]}
               onPress={handleConfirmReservation}
             >
-              <Text style={[styles.confirmButtonText, {color: isDarkMode ? colors.text : "#FFF"}]}>Confirm & Book</Text>
+              <Text style={[styles.confirmButtonText, {color: isDarkMode ? colors.text : "#FFF"}]}>{t("confirmAndBook")}</Text>
             </TouchableOpacity>
           </View>
         </>
       ) : (
         <Text style={[styles.emptyStateText, { color: colors.subtext }]}>
-          Please complete all previous steps.
+          {t('pleaseCompletePreviousSteps')}
         </Text>
       )}
     </View>
@@ -531,10 +500,10 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
   const renderModalHeader = () => (
     <View style={[styles.header, { borderBottomColor: colors.border }]}>
       <Text style={[styles.headerTitle, { color: colors.text }]}>
-        {activeTab === 'date' && 'Choose Date'}
-        {activeTab === 'guest' && 'Select Guests'}
-        {activeTab === 'time' && 'Pick a Time'}
-        {activeTab === 'confirm' && 'Confirm Booking'}
+        {activeTab === 'date' && t('chooseDate')}
+        {activeTab === 'guest' && t('selectGuests')}
+        {activeTab === 'time' && t('pickTime')}
+        {activeTab === 'confirm' && t('confirmBooking')}
       </Text>
       <TouchableOpacity onPress={onClose} style={styles.closeButton}>
         <Feather name="x" size={24} color={colors.text} />
@@ -573,7 +542,7 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
               onPress={() => setActiveTab("date")}
             >
               <Text style={[styles.tabText, { color: activeTab === "date" ? colors.primary : colors.subtext }]}>
-                Date
+                {t('date')}
               </Text>
             </TouchableOpacity>
 
@@ -589,7 +558,7 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
               disabled={!selectedDate}
             >
               <Text style={[styles.tabText, { color: !selectedDate ? colors.subtext + "80" : activeTab === "guest" ? colors.primary : colors.subtext }]}>
-                Guest
+                {t('guest')}
               </Text>
             </TouchableOpacity>
 
@@ -608,7 +577,7 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
               disabled={!(selectedDate && selectedGuests)}
             >
               <Text style={[styles.tabText, { color: !(selectedDate && selectedGuests) ? colors.subtext + "80" : activeTab === "time" ? colors.primary : colors.subtext }]}>
-                Time
+                {t('time')}
               </Text>
             </TouchableOpacity>
             
@@ -624,7 +593,7 @@ const ReservationProcess: React.FC<ReservationProcessProps> = ({
               disabled={!(selectedDate && selectedGuests && selectedTime)}
             >
               <Text style={[styles.tabText, { color: !(selectedDate && selectedGuests && selectedTime) ? colors.subtext + "80" : activeTab === "confirm" ? colors.primary : colors.subtext }]}>
-                Confirm
+                {t('confirm')}
               </Text>
             </TouchableOpacity>
           </View>

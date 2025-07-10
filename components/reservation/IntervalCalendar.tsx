@@ -3,9 +3,10 @@
 import type React from "react"
 import { useState } from "react"
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native"
-import { Calendar } from "react-native-calendars"
 import { format } from "date-fns"
+import { Calendar } from "react-native-calendars"
 import { useTheme } from "../../Context/ThemeContext"
+import { useTranslation } from "react-i18next"
 
 interface IntervalCalendarProps {
   onRangeSelect: (range: { start: Date; end: Date }) => void
@@ -14,18 +15,20 @@ interface IntervalCalendarProps {
 }
 
 const IntervalCalendar: React.FC<IntervalCalendarProps> = ({ onRangeSelect, onClose, isDarkMode }) => {
-  const { colors } = useTheme()
   const [startDate, setStartDate] = useState<Date | null>(null)
   const [endDate, setEndDate] = useState<Date | null>(null)
+  const { colors } = useTheme()
+  const { t } = useTranslation()
 
-  const handleDayPress = (day: { dateString: string }) => {
-    const selectedDate = new Date(day.dateString)
-
-    if (!startDate) {
-      // First selection - set start date
+  const handleDayPress = (day: any) => {
+    if (!startDate || (startDate && endDate)) {
+      // First selection or reset - set start date
+      const selectedDate = new Date(day.dateString)
       setStartDate(selectedDate)
-    } else if (!endDate) {
+      setEndDate(null)
+    } else {
       // Second selection - set end date
+      const selectedDate = new Date(day.dateString)
       if (selectedDate < startDate) {
         // If selected date is before start date, swap them
         setEndDate(startDate)
@@ -33,10 +36,6 @@ const IntervalCalendar: React.FC<IntervalCalendarProps> = ({ onRangeSelect, onCl
       } else {
         setEndDate(selectedDate)
       }
-    } else {
-      // Reset and start new selection
-      setStartDate(selectedDate)
-      setEndDate(null)
     }
   }
 
@@ -132,11 +131,11 @@ const IntervalCalendar: React.FC<IntervalCalendarProps> = ({ onRangeSelect, onCl
       />
 
       <View style={styles.selectionInfo}>
-        <Text style={[styles.selectionTitle, { color: colors.text }]}>Selected Range:</Text>
+        <Text style={[styles.selectionTitle, { color: colors.text }]}>{t("selectedRange")}:</Text>
         <Text style={[styles.selectionText, { color: colors.text }]}>
           {startDate
             ? `${format(startDate, "MMM dd, yyyy")}${endDate ? ` - ${format(endDate, "MMM dd, yyyy")}` : ""}`
-            : "No dates selected"}
+            : t("noDatesSelected")}
         </Text>
       </View>
 
@@ -145,7 +144,7 @@ const IntervalCalendar: React.FC<IntervalCalendarProps> = ({ onRangeSelect, onCl
           style={[styles.button, styles.cancelButton, { borderColor: colors.border }]}
           onPress={onClose}
         >
-          <Text style={{ color: colors.text }}>Cancel</Text>
+          <Text style={{ color: colors.text }}>{t('cancel')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[
@@ -159,7 +158,7 @@ const IntervalCalendar: React.FC<IntervalCalendarProps> = ({ onRangeSelect, onCl
           onPress={handleApply}
           disabled={!startDate}
         >
-          <Text style={styles.applyButtonText}>Apply</Text>
+          <Text style={styles.applyButtonText}>{t('apply')}</Text>
         </TouchableOpacity>
       </View>
     </View>

@@ -1,0 +1,18 @@
+{
+  "login": {
+    "title": "Iniciar Sesión",
+    "username": "Usuario",
+    "password": "Contraseña",
+    "loginButton": "Iniciar Sesión",
+    "error": "Credenciales inválidas"
+  },
+  "notifications": {
+    "title": "Notificaciones",
+    "filters": {
+      "all": "Todas",
+      "unread": "No leídas"
+    },
+    "markAsRead": "Marcar como leída",
+    "noNotifications": "No se encontraron notificaciones."
+  }
+}

@@ -12,6 +12,7 @@ import messaging from '@react-native-firebase/messaging';
 import { format, isToday, isTomorrow, isValid, isYesterday, parseISO } from "date-fns" // Added parseISO
 import { useSelectedDate } from "@/Context/SelectedDateContext" // Added
 import { useNotifications } from "@/Context/NotificationContext"
+import { useTranslation } from "react-i18next"
 
 // Define NotificationCount interface
 interface NotificationCount {
@@ -41,8 +42,8 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
         toggleTheme()
         
     }
-
-  const [selectedDateLabel, setSelectedDateLabel] = useState<string>("Today");
+  const { t } = useTranslation()
+  const [selectedDateLabel, setSelectedDateLabel] = useState<string>(t("today"));
   const { selectedDate, setSelectedDate: setSelectedDateContext } = useSelectedDate(); // Use context
   const { notificationCounts: notificationCount, onForegroundMessage } = useNotifications();
 
@@ -54,22 +55,22 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
 
 
       if (!isValid(currentDate)) {
-        return "Today"; // Fallback to Today if invalid date
+        return t("today"); // Fallback to Today if invalid date
       }
 
       if (isToday(currentDate)) {
-        return "Today";
+        return t("today");
       } else if (isYesterday(currentDate)) {
-        return "Yesterday";
+        return t("yesterday");
       } else if (isTomorrow(currentDate)) {
-        return "Tomorrow";
+        return t("tomorrow");
       } else {
         // For other dates, show formatted date (e.g., "Dec 25" or "25/12")
         return format(currentDate, "MMM dd");
       }
     } catch (error) {
       console.error("Error parsing date for label:", error, "Date string:", dateString);
-      return "Today"; // Fallback to Today
+      return t("today"); // Fallback to Today
     }
   };
 
@@ -78,9 +79,9 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
     if (selectedDate) {
       setSelectedDateLabel(getDateLabel(selectedDate));
     } else {
-      setSelectedDateLabel("Today"); // Default if context date is somehow null/undefined
+      setSelectedDateLabel(t("today")); // Default if context date is somehow null/undefined
     }
-  }, [selectedDate]);
+  }, [selectedDate, t]);
 
 
   const handleTodayPress = useCallback(async () => {
@@ -137,12 +138,12 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({
       />
 
 
-      <TouchableOpacity
+      {/* <TouchableOpacity
         style={[styles.todayButton, { backgroundColor: colors.background, borderColor: colors.border }]}
         onPress={handleTodayPress}
       >
         <Text style={[styles.todayText, { color: colors.text }]}>{selectedDateLabel}</Text>
-      </TouchableOpacity>
+      </TouchableOpacity> */}
 
       {/* Right Side Icons */}
       <View style={styles.rightContainer}>

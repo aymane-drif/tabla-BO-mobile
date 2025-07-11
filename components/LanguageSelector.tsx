@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/Context/ThemeContext';
 import { Feather } from '@expo/vector-icons';
+import { handleRTL } from '@/i18n';
 
 const LANGUAGE_KEY = 'app-language';
 
@@ -37,6 +38,7 @@ const LanguageSelector = () => {
     await AsyncStorage.setItem(LANGUAGE_KEY, langCode);
     setCurrentLanguage(langCode);
     setModalVisible(false);
+    handleRTL(langCode);
   };
 
   const selectedLanguage = languages.find(lang => lang.code === currentLanguage) || languages[0];

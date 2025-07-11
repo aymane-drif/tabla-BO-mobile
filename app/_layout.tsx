@@ -4,7 +4,7 @@ import { useFonts } from 'expo-font';
 import { SplashScreen, Stack, useRouter, usePathname, useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
 import { useColorScheme, View, ActivityIndicator, Platform } from 'react-native';
-import { AuthProvider, useAuth } from '@/Context/AuthContext';
+import { AuthProvider } from '@/Context/AuthContext';
 import { useTheme } from '@/Context/ThemeContext';
 import { NotificationProvider } from '@/Context/NotificationContext';
 import { getTrackingPermissionsAsync, requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
@@ -15,7 +15,7 @@ import * as ExpoNotifications from 'expo-notifications'; // Import expo-notifica
 import './../i18n'; // Import the i18n configuration
 import { useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import i18n from '../i18n'; // Import the i18n configuration
+import i18n, { handleRTL } from '../i18n'; // Import the i18n configuration
 
 globalThis.RNFB_SILENCE_MODULAR_DEPRECATION_WARNINGS = true;
 
@@ -106,6 +106,7 @@ export default function RootLayout() {
           console.log(`Stored language: ${savedLanguage}`);
           if (savedLanguage) {
             i18n.changeLanguage(savedLanguage);
+            handleRTL(savedLanguage);
             console.log(`Applied stored language: ${savedLanguage}`);
           }
         } catch (error) {

@@ -97,15 +97,16 @@ i18n
       escapeValue: false, // react already safes from xss
     },
   });
-
-// Listen for language changes
-i18n.on("languageChanged", (lng) => {
-  configureCalendars(lng)
+export const handleRTL = (lng: string)=> {
   const isRTL = lng.startsWith("ar")
   if (I18nManager.isRTL !== isRTL) {
     I18nManager.forceRTL(isRTL)
     Updates.reloadAsync()
   }
-})
+}
+// Listen for language changes
+i18n.on("languageChanged", (lng) => {
+  configureCalendars(lng)
+});
 
 export default i18n;

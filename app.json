@@ -53,7 +53,8 @@
           }
         }
       ],
-      "expo-tracking-transparency"
+      "expo-tracking-transparency",
+      "expo-updates"
     ],
     "experiments": {
       "typedRoutes": true

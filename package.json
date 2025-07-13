@@ -8,6 +8,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "build:prod": "eas build --platform all --profile production",
     "build:android:prod": "eas build --platform android",
     "build:ios:prod": "eas build --platform ios",
     "build:android:preview": "eas build --platform android --profile preview",

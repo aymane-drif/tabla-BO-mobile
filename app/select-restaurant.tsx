@@ -99,7 +99,9 @@ const SelectRestaurantScreen = () => {
       // AsyncStorage update is handled within updateRestaurantSelection in AuthContext
       await updateRestaurantSelection(newRestaurantId); 
       // No need to set api.defaults here, AuthContext effect handles it
-      router.replace('/(tabs)')
+      setTimeout(() => {
+        router.replace('/(tabs)');
+      }, 300);
 
     } catch (e) {
       console.error("Failed to select restaurant:", e);

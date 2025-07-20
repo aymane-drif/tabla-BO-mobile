@@ -22,6 +22,7 @@ import { DarkTheme, DefaultTheme } from '@react-navigation/native'; // For theme
 import { useTheme } from '@/Context/ThemeContext';
 import LanguageSelector from '@/components/LanguageSelector';
 import { useTranslation } from 'react-i18next';
+import { getTrackingPermissionsAsync, requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 
 const LoginScreen = () => {
   const [email, setEmail] = useState('');
@@ -33,6 +34,22 @@ const LoginScreen = () => {
   
   const {colors} = useTheme();
   const { t } = useTranslation();
+
+  useEffect(() => {
+    const requestTrackingPermission = async () => {
+      // You can optionally check if the permission has already been granted
+      const { granted } = await getTrackingPermissionsAsync();
+      if (granted) {
+        return;
+      }
+      const { status } = await requestTrackingPermissionsAsync();
+      if (status === "granted") {
+        console.log("Yay! I have user permission to track them");
+      }
+    };
+    // check if ios then request tracking permission 
+    requestTrackingPermission();
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {

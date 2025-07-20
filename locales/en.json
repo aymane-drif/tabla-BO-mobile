@@ -170,6 +170,10 @@
     "noDate": "No Date",
     "noTime": "No Time",
     "reservationId": "Reservation ID",
-    "addInternalNotes": "Add internal notes here"
+    "addInternalNotes": "Add internal notes here",
+    "reviewLinkSentTitle": "Review Link Sent",
+  "reviewLinkSentMessage": "A review link has been successfully sent for reservation #{{id}}.",
+  "failedToSendReviewLink": "Failed to send review link.",
+  "failedToSendReviewLinkWithError": "Failed to send review link: {{error}}"
   }
 }

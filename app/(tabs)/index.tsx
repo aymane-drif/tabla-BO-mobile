@@ -744,12 +744,37 @@ const ReservationsScreen = () => {
     }, 500)
   }
 
-  const sendReview = (id: string): void => {
-    // In a real app, this would be an API call.
-    Alert.alert(t("reviewLinkSentTitle"), t("reviewLinkSentMessage", { id }))
-    setToBeReviewedRes(id)
-  }
-
+  const sendReview = async (id: string) => {
+    try {
+      const reservation = reservations.find((r) => r.id === id);
+      if (!reservation) {
+        Alert.alert(t("error"), t("failedToSendReviewLinkWithError"));
+        return;
+      }
+      Alert.alert(t("reviewLinkSentTitle"), t("reviewLinkSentMessage", { id }));
+      await api.post(`/api/v1/bo/reservations/${id}/send_review_link/`, {
+        reservations: [reservation]
+      });
+      setToBeReviewedRes(id);
+      // refresh reservations list
+      fetchReservations(1, false); // Refresh page 1 without main loader
+    } catch (error) {
+      console.error(`Error sending review link for reservation ${id}:`, error);
+      let errorMessage = t("failedToSendReviewLink", "Failed to send review link.");
+      if (axios.isAxiosError(error) && error.response && error.response.data) {
+        const errorData = error.response.data;
+        if (errorData.detail) {
+          errorMessage = t("failedToSendReviewLinkWithError", { error: errorData.detail });
+        } else {
+          errorMessage = t("failedToSendReviewLinkWithError", { error: JSON.stringify(errorData) });
+        }
+      } else if (error instanceof Error) {
+        errorMessage = t("failedToSendReviewLinkWithError", { error: error.message });
+      }
+      Alert.alert(t("error"), errorMessage);
+    }
+  };
+  
   const handleDeleteReservation = async (id: string) => {
     try {
       await api.delete(`/api/v1/bo/reservations/${id}/`);

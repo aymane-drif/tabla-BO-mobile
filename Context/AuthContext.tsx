@@ -212,7 +212,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isLoading: false, // Set to false as logout is complete
       user: null,
     });
-
+    router.dismissAll(); // Dismiss all modals/screens in the stack
     router.replace('/login');
   };
 

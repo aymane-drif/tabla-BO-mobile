@@ -20,7 +20,7 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": ["remote-notification"],
-        "NSUserTrackingUsageDescription": "We use your device's identifier to help us understand how our app is used and to improve our services. This helps us provide a better, more reliable experience for you."
+        "NSUserTrackingUsageDescription": "This identifier will be used to deliver personalized notifications and content based on your activity."
       }
     },
     "notification": {

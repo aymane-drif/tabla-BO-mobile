@@ -169,6 +169,10 @@
     "noDate": "لا يوجد تاريخ",
     "noTime": "لا يوجد وقت",
     "reservationId": "معرف الحجز",
-    "addInternalNotes": "أضف ملاحظات داخلية هنا"
+    "addInternalNotes": "أضف ملاحظات داخلية هنا",
+      "reviewLinkSentTitle": "تم إرسال رابط التقييم",
+  "reviewLinkSentMessage": "تم إرسال رابط تقييم بنجاح للحجز رقم {{id}}#.",
+  "failedToSendReviewLink": "فشل إرسال رابط التقييم.",
+  "failedToSendReviewLinkWithError": "فشل إرسال رابط التقييم: {{error}}"
   }
 }

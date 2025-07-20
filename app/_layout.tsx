@@ -7,7 +7,6 @@ import { useColorScheme, View, ActivityIndicator, Platform } from 'react-native'
 import { AuthProvider } from '@/Context/AuthContext';
 import { useTheme } from '@/Context/ThemeContext';
 import { NotificationProvider } from '@/Context/NotificationContext';
-import { getTrackingPermissionsAsync, requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 export {
   ErrorBoundary,
 } from 'expo-router';
@@ -54,7 +53,6 @@ function RootLayoutNav() {
         <Stack.Screen name="Profile" options={{ 
           headerShown: true,
           title: t('profile'),
-          presentation: 'modal',
           headerStyle: {
           backgroundColor: (colors.background),
           },
@@ -79,24 +77,6 @@ export default function RootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
   });
-
-  useEffect(() => {
-    const requestTrackingPermission = async () => {
-      // You can optionally check if the permission has already been granted
-      const { granted } = await getTrackingPermissionsAsync();
-      if (granted) {
-        return;
-      }
-      const { status } = await requestTrackingPermissionsAsync();
-      if (status === "granted") {
-        console.log("Yay! I have user permission to track them");
-      }
-    };
-    // check if ios then request tracking permission 
-    if(Platform.OS === 'ios'){
-      requestTrackingPermission()
-    }
-  }, []);
 
     // Add an effect to check and apply saved language
     useEffect(() => {

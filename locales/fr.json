@@ -169,6 +169,10 @@
     "noDate": "Pas de date",
     "noTime": "Pas d'heure",
     "reservationId": "ID de réservation",
-    "addInternalNotes": "Ajouter des notes internes ici"
+    "addInternalNotes": "Ajouter des notes internes ici",
+    "reviewLinkSentTitle": "Lien d'avis envoyé",
+  "reviewLinkSentMessage": "Un lien d'avis a été envoyé avec succès pour la réservation n°{{id}}.",
+  "failedToSendReviewLink": "Échec de l'envoi du lien d'avis.",
+  "failedToSendReviewLinkWithError": "Échec de l'envoi du lien d'avis : {{error}}"
   }
 }

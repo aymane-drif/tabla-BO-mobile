@@ -100,7 +100,8 @@ const SelectRestaurantScreen = () => {
       await updateRestaurantSelection(newRestaurantId); 
       // No need to set api.defaults here, AuthContext effect handles it
       setTimeout(() => {
-        router.replace('/(tabs)');
+        router.dismissAll(); // Dismiss all modals/screens in the stack
+        router.push('/(tabs)'); // Navigate to the main screen
       }, 300);
 
     } catch (e) {
